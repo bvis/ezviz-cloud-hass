@@ -51,5 +51,26 @@
       "cannot_connect": "Kan de cameralijst niet ophalen van EZVIZ Open Platform.",
       "no_cameras": "Dit EZVIZ-account heeft geen camera's."
     }
+  },
+  "entity": {
+    "select": {
+      "mode": {
+        "name": "Modus",
+        "state": {
+          "view": "Bekijken",
+          "record": "Opnemen"
+        }
+      }
+    },
+    "camera": {
+      "last_photo": {
+        "name": "Laatste foto"
+      }
+    },
+    "sensor": {
+      "last_recording": {
+        "name": "Laatste opname"
+      }
+    }
   }
 }

@@ -51,5 +51,26 @@
       "cannot_connect": "Could not get the camera list from the EZVIZ Open Platform.",
       "no_cameras": "This EZVIZ account has no cameras."
     }
+  },
+  "entity": {
+    "select": {
+      "mode": {
+        "name": "Mode",
+        "state": {
+          "view": "View",
+          "record": "Record"
+        }
+      }
+    },
+    "camera": {
+      "last_photo": {
+        "name": "Last photo"
+      }
+    },
+    "sensor": {
+      "last_recording": {
+        "name": "Last recording"
+      }
+    }
   }
 }

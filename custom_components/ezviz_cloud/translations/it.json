@@ -51,5 +51,26 @@
       "cannot_connect": "Impossibile ottenere l'elenco delle telecamere da EZVIZ Open Platform.",
       "no_cameras": "Questo account EZVIZ non ha telecamere."
     }
+  },
+  "entity": {
+    "select": {
+      "mode": {
+        "name": "Modalità",
+        "state": {
+          "view": "Visualizza",
+          "record": "Registra"
+        }
+      }
+    },
+    "camera": {
+      "last_photo": {
+        "name": "Ultima foto"
+      }
+    },
+    "sensor": {
+      "last_recording": {
+        "name": "Ultima registrazione"
+      }
+    }
   }
 }

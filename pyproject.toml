@@ -46,6 +46,8 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN", "ASYNC240", "B018", "PT004", "PT012"]
+# Vulture whitelist: bare names on purpose.
+"vulture_whitelist.py" = ["B018", "F821"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["custom_components.ezviz_cloud"]
