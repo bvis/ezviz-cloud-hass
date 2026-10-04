@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.2.0] - 2026-10-04
 
 ### Added
 - **Verification codes stored in the integration.** Configure on the integration lists the cameras of the account and saves each one's code, so it no longer has to be in the dashboard. A `code` on the card still works and takes precedence. **Requests to EZVIZ:** one camera list request each time the dialog opens.

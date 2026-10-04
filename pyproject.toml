@@ -2,7 +2,7 @@
 name = "ezviz-cloud-hass"
 # Mirror of manifest.json's version (the source of truth HA reads). Kept in
 # sync by tests/unit/test_version_consistency.py — bump both when releasing.
-version = "0.1.2"
+version = "0.2.0"
 description = "Home Assistant integration for live view of EZVIZ cameras through the EZVIZ Open Platform"
 requires-python = ">=3.13"
 license = "MIT"
