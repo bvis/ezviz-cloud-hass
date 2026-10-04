@@ -63,8 +63,10 @@ def _options_flow(
     exc: Exception | None = None,
 ) -> EzvizCloudOptionsFlow:
     entry = MagicMock(state=state, options={"codes": {"BK1": "OLDOLD"}})
-    entry.runtime_data.async_get_token = AsyncMock(return_value=MagicMock(token="at.x"))
-    entry.runtime_data.api.async_get_cameras = AsyncMock(return_value=cameras, side_effect=exc)
+    entry.runtime_data.manager.async_get_token = AsyncMock(return_value=MagicMock(token="at.x"))
+    entry.runtime_data.manager.api.async_get_cameras = AsyncMock(
+        return_value=cameras, side_effect=exc
+    )
     flow = EzvizCloudOptionsFlow()
     flow.__dict__["_entry"] = entry
     return flow

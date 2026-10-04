@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+from homeassistant.util.hass_dict import HassKey
+
+if TYPE_CHECKING:
+    from .recording import RecordingSessions
 
 DOMAIN: Final = "ezviz_cloud"
 
@@ -54,3 +59,7 @@ SESSION_IDLE_TIMEOUT: Final = 30
 def signal_recorded(serial: str) -> str:
     """Dispatcher signal sent when a recording of this camera is saved."""
     return f"{DOMAIN}_recorded_{serial}"
+
+
+# Shared by every entry: the upload view and the websocket commands find sessions here.
+DATA_RECORDER: HassKey[RecordingSessions] = HassKey(DOMAIN)

@@ -115,7 +115,7 @@ class EzvizCloudOptionsFlow(OptionsFlow):
 
         if self.config_entry.state is not ConfigEntryState.LOADED:
             return self.async_abort(reason="not_loaded")
-        manager = self.config_entry.runtime_data
+        manager = self.config_entry.runtime_data.manager
         try:
             token = await manager.async_get_token()
             cameras = await manager.api.async_get_cameras(token.token)

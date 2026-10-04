@@ -21,8 +21,8 @@ def _entry(
     entry_id: str, state: ConfigEntryState = ConfigEntryState.LOADED, codes: dict | None = None
 ) -> MagicMock:
     entry = MagicMock(entry_id=entry_id, state=state, options={"codes": codes or {}})
-    entry.runtime_data.api.domain = "https://ieuopen.ezvizlife.com"
-    entry.runtime_data.async_get_token = AsyncMock(return_value=AccessToken("at.x", EXPIRY))
+    entry.runtime_data.manager.api.domain = "https://ieuopen.ezvizlife.com"
+    entry.runtime_data.manager.async_get_token = AsyncMock(return_value=AccessToken("at.x", EXPIRY))
     return entry
 
 
@@ -50,8 +50,8 @@ async def test_returns_token_of_the_only_loaded_entry() -> None:
 async def test_picks_requested_entry() -> None:
     first, second = _entry("a"), _entry("b")
     await _call([first, second], {"entry_id": "b"})
-    first.runtime_data.async_get_token.assert_not_awaited()
-    second.runtime_data.async_get_token.assert_awaited_once()
+    first.runtime_data.manager.async_get_token.assert_not_awaited()
+    second.runtime_data.manager.async_get_token.assert_awaited_once()
 
 
 async def test_errors_without_loaded_entry() -> None:
@@ -61,7 +61,7 @@ async def test_errors_without_loaded_entry() -> None:
 
 async def test_reports_token_failure() -> None:
     entry = _entry("a")
-    entry.runtime_data.async_get_token = AsyncMock(side_effect=EzvizCloudError("down"))
+    entry.runtime_data.manager.async_get_token = AsyncMock(side_effect=EzvizCloudError("down"))
     conn = await _call([entry], {})
     assert conn.send_error.call_args.args[:2] == (1, "token_error")
 
@@ -80,7 +80,7 @@ async def test_token_includes_stored_code_from_the_account_that_has_it() -> None
     first, second = _entry("a"), _entry("b", codes={"BK1": "ABCDEF"})
     conn = await _call([first, second], {"serial": "BK1"})
     assert conn.send_result.call_args.args[1]["code"] == "ABCDEF"
-    first.runtime_data.async_get_token.assert_not_awaited()
+    first.runtime_data.manager.async_get_token.assert_not_awaited()
 
 
 async def test_token_without_stored_code_has_no_code() -> None:
@@ -90,11 +90,11 @@ async def test_token_without_stored_code_has_no_code() -> None:
 
 async def test_devices_lists_cameras_of_every_account() -> None:
     entry = _entry("a", codes={"BK1": "ABCDEF"})
-    entry.runtime_data.api.async_get_cameras = AsyncMock(
+    entry.runtime_data.manager.api.async_get_cameras = AsyncMock(
         return_value=[Camera("BK1", 1, "Door", True), Camera("BK2", 1, "Yard", False)]
     )
     conn = await _call([entry, _entry("b", ConfigEntryState.SETUP_ERROR)], {}, ws_get_devices)
-    entry.runtime_data.api.async_get_cameras.assert_awaited_once_with("at.x")
+    entry.runtime_data.manager.api.async_get_cameras.assert_awaited_once_with("at.x")
     conn.send_result.assert_called_once_with(
         1,
         [
@@ -120,6 +120,8 @@ async def test_devices_lists_cameras_of_every_account() -> None:
 
 async def test_devices_reports_api_failure() -> None:
     entry = _entry("a")
-    entry.runtime_data.api.async_get_cameras = AsyncMock(side_effect=EzvizCloudError("down"))
+    entry.runtime_data.manager.api.async_get_cameras = AsyncMock(
+        side_effect=EzvizCloudError("down")
+    )
     conn = await _call([entry], {}, ws_get_devices)
     assert conn.send_error.call_args.args[:2] == (1, "api_error")

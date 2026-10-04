@@ -18,6 +18,9 @@ dev = [
     "ruff>=0.4.0",
     "mypy>=1.8.0",
     "vulture>=2.11",
+    # Importing HA's camera platform pulls in the stream and image helpers.
+    "numpy",
+    "PyTurboJPEG",
 ]
 
 [tool.pytest.ini_options]

@@ -50,7 +50,7 @@ async def ws_get_token(
         return
     serial = msg.get("serial")
     entry = next((e for e in entries if serial in e.options.get(CONF_CODES, {})), entries[0])
-    manager = entry.runtime_data
+    manager = entry.runtime_data.manager
     try:
         token = await manager.async_get_token()
     except EzvizCloudError as err:
@@ -74,7 +74,7 @@ async def ws_get_devices(
     """List the cameras of every loaded account, for the card editor."""
     devices = []
     for entry in _loaded_entries(hass):
-        manager = entry.runtime_data
+        manager = entry.runtime_data.manager
         codes = entry.options.get(CONF_CODES, {})
         try:
             token = await manager.async_get_token()
