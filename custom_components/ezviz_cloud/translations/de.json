@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EZVIZ-Open-Platform-App",
+        "description": "Erstelle in der EZVIZ-Entwicklerkonsole deiner Region eine App (Account Settings → Appkey management) und füge deren AppKey und AppSecret ein.",
+        "data": {
+          "region": "Region",
+          "app_key": "AppKey",
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "region": "Die Region deines EZVIZ-Kontos. Ein AppKey funktioniert nur in seiner eigenen Region."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "EZVIZ hat AppKey/AppSecret abgelehnt. Prüfe beide Werte und ob die Region zu deinem Konto passt.",
+      "cannot_connect": "EZVIZ Open Platform ist nicht erreichbar."
+    },
+    "abort": {
+      "already_configured": "Dieser AppKey ist bereits eingerichtet."
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "eu": "Europa",
+        "us": "Nordamerika",
+        "sa": "Südamerika",
+        "sgp": "Singapur",
+        "india": "Indien",
+        "vn": "Vietnam",
+        "cn": "China"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Verifizierungscodes",
+        "description": "Wähle eine Kamera und gib den Verifizierungscode von ihrem Etikett ein (sechs Großbuchstaben). Die Karte verwendet ihn, damit der Code nicht im Dashboard stehen muss. Mit ✓ markierte Kameras haben bereits einen; lass das Feld leer, um ihn zu entfernen.",
+        "data": {
+          "serial": "Kamera",
+          "code": "Verifizierungscode"
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "Die Integration ist nicht geladen. Behebe zuerst das Konto und versuche es dann erneut.",
+      "cannot_connect": "Die Kameraliste konnte nicht von EZVIZ Open Platform abgerufen werden.",
+      "no_cameras": "Dieses EZVIZ-Konto hat keine Kameras."
+    }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EZVIZ Open Platform-app",
+        "description": "Maak een app aan in de EZVIZ-ontwikkelaarsconsole van je regio (Account Settings → Appkey management) en plak de AppKey en AppSecret.",
+        "data": {
+          "region": "Regio",
+          "app_key": "AppKey",
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "region": "De regio van je EZVIZ-account. Een AppKey werkt alleen in zijn eigen regio."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "EZVIZ heeft de AppKey/AppSecret geweigerd. Controleer beide waarden en of de regio bij je account past.",
+      "cannot_connect": "Kan EZVIZ Open Platform niet bereiken."
+    },
+    "abort": {
+      "already_configured": "Deze AppKey is al geconfigureerd."
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "eu": "Europa",
+        "us": "Noord-Amerika",
+        "sa": "Zuid-Amerika",
+        "sgp": "Singapore",
+        "india": "India",
+        "vn": "Vietnam",
+        "cn": "China"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Verificatiecodes",
+        "description": "Kies een camera en typ de verificatiecode van het label (zes hoofdletters). De kaart gebruikt die, zodat de code niet in het dashboard hoeft te staan. Camera's met ✓ hebben er al een; laat de code leeg om hem te verwijderen.",
+        "data": {
+          "serial": "Camera",
+          "code": "Verificatiecode"
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "De integratie is niet geladen. Herstel eerst het account en probeer het opnieuw.",
+      "cannot_connect": "Kan de cameralijst niet ophalen van EZVIZ Open Platform.",
+      "no_cameras": "Dit EZVIZ-account heeft geen camera's."
+    }
+  }
+}

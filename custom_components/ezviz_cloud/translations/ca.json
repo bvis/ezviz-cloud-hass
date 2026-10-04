@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "App d'EZVIZ Open Platform",
+        "description": "Crea una app a la consola de desenvolupadors d'EZVIZ de la teva regió (Account Settings → Appkey management) i enganxa'n l'AppKey i l'AppSecret.",
+        "data": {
+          "region": "Regió",
+          "app_key": "AppKey",
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "region": "La regió del teu compte d'EZVIZ. Un AppKey només funciona a la seva pròpia regió."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "EZVIZ ha rebutjat l'AppKey/AppSecret. Revisa tots dos valors i que la regió coincideixi amb el teu compte.",
+      "cannot_connect": "No s'ha pogut connectar amb EZVIZ Open Platform."
+    },
+    "abort": {
+      "already_configured": "Aquest AppKey ja està configurat."
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "eu": "Europa",
+        "us": "Amèrica del Nord",
+        "sa": "Amèrica del Sud",
+        "sgp": "Singapur",
+        "india": "Índia",
+        "vn": "Vietnam",
+        "cn": "Xina"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Codis de verificació",
+        "description": "Tria una càmera i escriu el codi de verificació de la seva etiqueta (sis lletres majúscules). La targeta el fa servir i així el codi no ha de ser al tauler. Les càmeres marcades amb ✓ ja en tenen un; deixa el codi buit per treure'l.",
+        "data": {
+          "serial": "Càmera",
+          "code": "Codi de verificació"
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "La integració no està carregada. Arregla primer el compte i torna-ho a provar.",
+      "cannot_connect": "No s'ha pogut obtenir la llista de càmeres d'EZVIZ Open Platform.",
+      "no_cameras": "Aquest compte d'EZVIZ no té càmeres."
+    }
+  }
+}

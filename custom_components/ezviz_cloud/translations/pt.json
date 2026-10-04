@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Aplicação EZVIZ Open Platform",
+        "description": "Crie uma aplicação na consola de programadores EZVIZ da sua região (Account Settings → Appkey management) e cole o respetivo AppKey e AppSecret.",
+        "data": {
+          "region": "Região",
+          "app_key": "AppKey",
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "region": "A região da sua conta EZVIZ. Um AppKey só funciona na sua própria região."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "A EZVIZ rejeitou o AppKey/AppSecret. Verifique ambos os valores e se a região corresponde à sua conta.",
+      "cannot_connect": "Não foi possível contactar a EZVIZ Open Platform."
+    },
+    "abort": {
+      "already_configured": "Este AppKey já está configurado."
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "eu": "Europa",
+        "us": "América do Norte",
+        "sa": "América do Sul",
+        "sgp": "Singapura",
+        "india": "Índia",
+        "vn": "Vietname",
+        "cn": "China"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Códigos de verificação",
+        "description": "Escolha uma câmara e escreva o código de verificação da etiqueta (seis letras maiúsculas). O cartão usa-o, por isso o código não tem de estar no painel. As câmaras marcadas com ✓ já têm um; deixe o código vazio para o remover.",
+        "data": {
+          "serial": "Câmara",
+          "code": "Código de verificação"
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "A integração não está carregada. Corrija primeiro a conta e tente novamente.",
+      "cannot_connect": "Não foi possível obter a lista de câmaras da EZVIZ Open Platform.",
+      "no_cameras": "Esta conta EZVIZ não tem câmaras."
+    }
+  }
+}

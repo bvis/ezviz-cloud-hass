@@ -45,3 +45,30 @@ def test_translation_keys_match_strings(locale: str) -> None:
     source = _keys(json.loads((COMPONENT / "strings.json").read_text()))
     target = _keys(json.loads((COMPONENT / "translations" / f"{locale}.json").read_text()))
     assert source == target
+
+
+CARD = (COMPONENT / "frontend" / "ezviz-cloud-live-card.js").read_text()
+CARD_STRINGS: dict[str, dict[str, str]] = json.loads(
+    re.search(r"/\* translations \*/(.*?)/\* end translations \*/", CARD, re.S).group(1)  # type: ignore[union-attr]
+)
+
+
+def test_card_speaks_the_integration_languages() -> None:
+    integration = {p.stem for p in (COMPONENT / "translations").glob("*.json")}
+    assert set(CARD_STRINGS) == integration
+
+
+@pytest.mark.parametrize("lang", sorted(CARD_STRINGS))
+def test_card_translations_are_complete(lang: str) -> None:
+    english = CARD_STRINGS["en"]
+    assert set(CARD_STRINGS[lang]) == set(english)
+    for key, text in CARD_STRINGS[lang].items():
+        assert re.findall(r"\{\w+\}", text) == re.findall(r"\{\w+\}", english[key]), key
+
+
+def test_card_uses_exactly_its_keys() -> None:
+    used = set(re.findall(r'\bt\(\w+(?:\._lang)?, "(\w+)"', CARD))
+    used |= set(re.findall(r"(?:key|errorKey):[\"'](\w+)", CARD))
+    used |= {f"label_{n}" for n in re.findall(r'\{ name: "(\w+)"', CARD)}
+    used |= set(re.findall(r'_showProgress\(\d+, "(\w+)"', CARD))
+    assert used == set(CARD_STRINGS["en"])

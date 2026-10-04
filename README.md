@@ -16,9 +16,10 @@ The built-in EZVIZ integration plays video over local RTSP, so battery devices (
 ## Features
 
 - **Live view card** (`custom:ezviz-cloud-live-card`) with a visual editor, shipped with the integration. No Lovelace resource to add by hand.
-- **Wakes sleeping battery cameras** when you press *Watch live*, typically showing video within 5 seconds.
+- **Wakes sleeping battery cameras** when you press *Watch live*, typically showing video within 5 seconds (up to 15 the first time a browser loads the player).
 - **Works with video encryption on.** The verification code from the device label decrypts the stream in the browser.
 - **Saves battery**: the stream stops after 60 seconds (configurable) or as soon as you leave the view.
+- **In your language**: English, Spanish, Catalan, French, German, Italian, Portuguese (Portugal and Brazil) and Dutch, following each Home Assistant user's language.
 - **Access token handled for you.** The token lives 7 days; the integration renews it when it's needed and keeps it out of entity states and the recorder.
 
 ## Supported devices

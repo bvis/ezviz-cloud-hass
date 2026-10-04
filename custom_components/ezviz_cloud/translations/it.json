@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "App EZVIZ Open Platform",
+        "description": "Crea un'app nella console sviluppatori EZVIZ della tua regione (Account Settings → Appkey management) e incolla il suo AppKey e AppSecret.",
+        "data": {
+          "region": "Regione",
+          "app_key": "AppKey",
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "region": "La regione del tuo account EZVIZ. Un AppKey funziona solo nella propria regione."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "EZVIZ ha rifiutato AppKey/AppSecret. Controlla entrambi i valori e che la regione corrisponda al tuo account.",
+      "cannot_connect": "Impossibile raggiungere EZVIZ Open Platform."
+    },
+    "abort": {
+      "already_configured": "Questo AppKey è già configurato."
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "eu": "Europa",
+        "us": "Nord America",
+        "sa": "Sud America",
+        "sgp": "Singapore",
+        "india": "India",
+        "vn": "Vietnam",
+        "cn": "Cina"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Codici di verifica",
+        "description": "Scegli una telecamera e inserisci il codice di verifica della sua etichetta (sei lettere maiuscole). La scheda lo usa, così il codice non deve stare nella dashboard. Le telecamere con ✓ ne hanno già uno; lascia il codice vuoto per rimuoverlo.",
+        "data": {
+          "serial": "Telecamera",
+          "code": "Codice di verifica"
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "L'integrazione non è caricata. Sistema prima l'account e riprova.",
+      "cannot_connect": "Impossibile ottenere l'elenco delle telecamere da EZVIZ Open Platform.",
+      "no_cameras": "Questo account EZVIZ non ha telecamere."
+    }
+  }
+}
