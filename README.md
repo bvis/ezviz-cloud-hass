@@ -29,7 +29,7 @@ Any camera the EZVIZ Open Platform can play should work. Tested so far:
 
 | Model | Type | Result |
 |---|---|---|
-| HP2 (`CS-HP2-R100-6E2WB-GR`) | Battery smart peephole, no RTSP | Live view works, wakes from sleep, encryption on |
+| HP2 (`CS-HP2-R100-6E2WB-GR`) | Battery smart peephole, no RTSP | Live view and recordings work, wakes from sleep, encryption on |
 
 If you try another model, please open an issue with the result, good or bad, so this table can grow.
 
@@ -102,7 +102,7 @@ max_seconds: 60          # optional, default 60
 
 ### 5. Recordings (optional)
 
-Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds, together with a photo of its first frame. Files go to `media/ezviz_cloud/<serial>/`, named after the start time.
+Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds, together with a photo of its first frame. Files go to `media/ezviz_cloud/<serial>/`, named after the start time; the video is MP4 or WebM depending on the browser. The *Last recording* sensor's `video` and `photo` attributes hold their `media-source://` addresses, handy for notifications.
 
 - Only live views opened from the card are recorded. Waking the camera with its button or from the EZVIZ app isn't.
 - During the live view, *● Record* / *■ Stop recording* start or end a recording on the spot, whatever the mode: switch to recording when you see something, or stop it without closing the stream.
@@ -121,7 +121,7 @@ Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo
 
 Video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser showing the card. That's why the `camera` entity only shows the photo of the last recording. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
 
-**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the integration's Configure dialog lists the cameras (one request per 50 cameras). The live stream itself is opened by the player in the browser.
+**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). The live stream itself is opened by the player in the browser.
 
 ## Troubleshooting
 
@@ -130,6 +130,7 @@ Video never goes through Home Assistant: it flows from the EZVIZ cloud straight 
 | "EZVIZ rejected the AppKey/AppSecret" during setup | Check both values and the **region**. An AppKey from the European console fails against any other region with "AppKey doesn't exist". |
 | The card says `EZVIZ Cloud: No loaded EZVIZ Cloud account` | The integration isn't set up or failed to load. Check Settings → Devices & services. |
 | The card shows an error after "Waking camera…" | The camera didn't answer the cloud in time: check it's online in the EZVIZ app and try again. A wrong or missing verification code also fails here; check it under Configure. |
+| The card shows "Couldn't save the recording" | Another browser is already recording that camera, this browser can't record the player's video, or Home Assistant couldn't write the file (check the log). |
 | The card isn't in the card picker | Hard-refresh the browser (the card is loaded once per page load). |
 
 ## Support
