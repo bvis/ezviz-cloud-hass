@@ -63,7 +63,7 @@ class EzvizCloudLiveCard extends HTMLElement {
     this._stop();
   }
 
-  _render() {
+  _render(message = "") {
     if (!this._card) {
       this._card = document.createElement("ha-card");
       this._card.style.overflow = "hidden";
@@ -71,44 +71,115 @@ class EzvizCloudLiveCard extends HTMLElement {
     }
     this._card.header = this._config.title || "";
     this._card.innerHTML = `
-      <div style="position:relative;aspect-ratio:16/9;background:#000;display:flex;align-items:center;justify-content:center;color:#fff">
+      <div style="position:relative;aspect-ratio:16/9;background:#000;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;color:#fff;text-align:center">
+        <div style="padding:0 16px"></div>
         <button style="font:inherit;padding:10px 18px;border:0;border-radius:18px;cursor:pointer;background:var(--primary-color);color:var(--text-primary-color,#fff)">Watch live</button>
       </div>`;
     this._box = this._card.firstElementChild;
+    this._box.firstElementChild.textContent = message;
     this._box.querySelector("button").addEventListener("click", () => this._play());
   }
 
+  // Loading overlay with a percentage, shown until the first frame. The player
+  // reports stages (decoder downloaded, video info...), not bytes, so each
+  // stage sets a floor and the number creeps towards the next one meanwhile.
+  _showProgress(percent, label) {
+    if (!this._overlay) {
+      this._overlay = document.createElement("div");
+      this._overlay.style.cssText =
+        "position:absolute;inset:0;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;background:#000;color:#fff;pointer-events:none";
+      this._overlay.innerHTML = `<div></div>
+        <div style="width:50%;height:4px;border-radius:2px;background:rgba(255,255,255,.25)"><div style="height:100%;width:0;border-radius:2px;background:var(--primary-color);transition:width .2s"></div></div>`;
+      this._box.appendChild(this._overlay);
+      this._progress = { value: 0, cap: 0 };
+      this._creep = setInterval(() => {
+        const p = this._progress;
+        p.value += (p.cap - p.value) * 0.02;
+        this._paintProgress();
+      }, 200);
+    }
+    const p = this._progress;
+    p.value = Math.max(p.value, percent);
+    p.cap = Math.max(p.cap, percent + 20 > 99 ? 99 : percent + 20);
+    if (label) p.label = label;
+    this._paintProgress();
+  }
+
+  _paintProgress() {
+    const p = this._progress;
+    this._overlay.firstElementChild.textContent = `${p.label} ${Math.floor(p.value)}%`;
+    this._overlay.lastElementChild.firstElementChild.style.width = `${p.value}%`;
+  }
+
+  _hideProgress() {
+    clearInterval(this._creep);
+    this._overlay?.remove();
+    this._overlay = null;
+  }
+
   async _play() {
-    this._box.textContent = "Connecting…";
+    this._box.textContent = "";
+    this._showProgress(2, "Connecting…");
     let auth;
     try {
       auth = await this._hass.callWS({ type: "ezviz_cloud/token" });
     } catch (err) {
-      this._box.textContent = `EZVIZ Cloud: ${err.message || err.code || err}`;
+      this._fail(`EZVIZ Cloud: ${err.message || err.code || err}`);
       return;
     }
+    this._showProgress(10, "Loading player…");
     const { serial, code, channel, max_seconds } = this._config;
     const opts = JSON.stringify({
       accessToken: auth.access_token,
       url: `ezopen://${code}@open.ezviz.com/${serial}/${channel}.live`,
       env: { domain: auth.domain },
+      language: "en",
     }).replace(/</g, "\\u003c");
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "border:0;width:100%;height:100%;position:absolute;inset:0";
     iframe.setAttribute("allow", "autoplay; fullscreen");
+    // The player runs inside the iframe; it reports back with postMessage.
     iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8">
 <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#v,#v canvas{width:100%!important;height:100%!important}</style>
-<script src="${EZUIKIT}"></script></head><body><div id="v"></div><script>
+<script>const send=(m)=>parent.postMessage({ezvizCloud:m},"*");</script>
+<script src="${EZUIKIT}" onerror="send({error:'Could not load the EZVIZ player'})"></script></head><body><div id="v"></div><script>
+if(window.EZUIKit){
 const o=${opts};
-new EZUIKit.EZUIKitPlayer({id:'v',width:innerWidth,height:innerHeight,...o});
+const E=EZUIKit.EZUIKitPlayer.EVENTS;
+send({stage:25,label:"Loading decoder…"});
+const player=new EZUIKit.EZUIKitPlayer({id:'v',width:innerWidth,height:innerHeight,...o,
+  handleError:(e)=>send({error:(e&&(e.msg||e.data&&e.data.msg||e.type))||"Player error"})});
+player.eventEmitter.on(E.decoderLoaded,()=>send({stage:60,label:"Waking camera…"}));
+player.eventEmitter.on(E.videoInfo,()=>send({stage:90,label:"Starting video…"}));
+player.eventEmitter.on(E.firstFrameDisplay,()=>send({ready:true}));
+// Stream failures (camera did not answer, bad code...) only arrive as messages.
+player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error:msg||'Could not start the video'})});
+}
 </script></body></html>`;
-    this._box.textContent = "";
-    this._box.appendChild(iframe);
-    this._timer = setTimeout(() => this._stop(), max_seconds * 1000);
+    this._onMessage = (ev) => {
+      const m = ev.source === iframe.contentWindow && ev.data?.ezvizCloud;
+      if (!m) return;
+      if (m.error) this._fail(m.error);
+      else if (m.ready) this._hideProgress();
+      else this._showProgress(m.stage, m.label);
+    };
+    window.addEventListener("message", this._onMessage);
+    this._box.insertBefore(iframe, this._overlay);
+    this._timer = setTimeout(
+      () => (this._overlay ? this._fail(`No video from the camera after ${max_seconds} s`) : this._stop()),
+      max_seconds * 1000,
+    );
+  }
+
+  _fail(message) {
+    this._stop();
+    this._render(message);
   }
 
   _stop() {
     clearTimeout(this._timer);
+    window.removeEventListener("message", this._onMessage);
+    this._hideProgress();
     if (this._config && this._box?.querySelector("iframe")) this._render();
   }
 }

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Loading progress while the stream starts.** The card shows what it is doing (connecting, loading the decoder, waking the camera, starting the video) with a percentage until the first frame, instead of a black box for 10–15 seconds. **Requests to EZVIZ:** none added.
+
+### Fixed
+- **Player errors are shown on the card.** When the camera doesn't answer or the player fails to load, the card now says why and offers *Watch live* again; before, it stayed black until the 60-second limit. **Requests to EZVIZ:** none added.
+
 ## [0.1.1] - 2026-10-04
 
 ### Fixed
