@@ -43,7 +43,9 @@ const STRINGS = /* translations */ {
     "err_viewers": "Too many people are watching this camera at once.",
     "err_permission": "This account isn't allowed to view the camera.",
     "err_device": "The camera reported an error. Try again.",
-    "err_service": "EZVIZ returned an error. Try again in a while."
+    "err_service": "EZVIZ returned an error. Try again in a while.",
+    "recording": "● Recording",
+    "recording_failed": "Couldn't save the recording"
   },
   "es": {
     "watch_live": "Ver en directo",
@@ -69,7 +71,9 @@ const STRINGS = /* translations */ {
     "err_viewers": "Hay demasiadas personas viendo la cámara a la vez.",
     "err_permission": "Esta cuenta no tiene permiso para ver la cámara.",
     "err_device": "La cámara ha dado un error. Vuelve a intentarlo.",
-    "err_service": "EZVIZ ha dado un error. Vuelve a intentarlo en un rato."
+    "err_service": "EZVIZ ha dado un error. Vuelve a intentarlo en un rato.",
+    "recording": "● Grabando",
+    "recording_failed": "No se ha podido guardar la grabación"
   },
   "ca": {
     "watch_live": "Veure en directe",
@@ -95,7 +99,9 @@ const STRINGS = /* translations */ {
     "err_viewers": "Hi ha massa gent mirant la càmera alhora.",
     "err_permission": "Aquest compte no té permís per veure la càmera.",
     "err_device": "La càmera ha donat un error. Torna-ho a provar.",
-    "err_service": "EZVIZ ha donat un error. Torna-ho a provar d'aquí a una estona."
+    "err_service": "EZVIZ ha donat un error. Torna-ho a provar d'aquí a una estona.",
+    "recording": "● Gravant",
+    "recording_failed": "No s'ha pogut desar l'enregistrament"
   },
   "fr": {
     "watch_live": "Voir en direct",
@@ -121,7 +127,9 @@ const STRINGS = /* translations */ {
     "err_viewers": "Trop de personnes regardent cette caméra en même temps.",
     "err_permission": "Ce compte n'est pas autorisé à voir la caméra.",
     "err_device": "La caméra a signalé une erreur. Réessayez.",
-    "err_service": "EZVIZ a renvoyé une erreur. Réessayez dans un moment."
+    "err_service": "EZVIZ a renvoyé une erreur. Réessayez dans un moment.",
+    "recording": "● Enregistrement",
+    "recording_failed": "Impossible d'enregistrer la vidéo"
   },
   "de": {
     "watch_live": "Live ansehen",
@@ -147,7 +155,9 @@ const STRINGS = /* translations */ {
     "err_viewers": "Zu viele Personen sehen sich diese Kamera gleichzeitig an.",
     "err_permission": "Dieses Konto darf die Kamera nicht ansehen.",
     "err_device": "Die Kamera hat einen Fehler gemeldet. Versuche es erneut.",
-    "err_service": "EZVIZ hat einen Fehler zurückgegeben. Versuche es später erneut."
+    "err_service": "EZVIZ hat einen Fehler zurückgegeben. Versuche es später erneut.",
+    "recording": "● Aufnahme",
+    "recording_failed": "Aufnahme konnte nicht gespeichert werden"
   },
   "it": {
     "watch_live": "Guarda dal vivo",
@@ -173,7 +183,9 @@ const STRINGS = /* translations */ {
     "err_viewers": "Troppe persone stanno guardando questa telecamera contemporaneamente.",
     "err_permission": "Questo account non ha il permesso di vedere la telecamera.",
     "err_device": "La telecamera ha segnalato un errore. Riprova.",
-    "err_service": "EZVIZ ha restituito un errore. Riprova tra un po'."
+    "err_service": "EZVIZ ha restituito un errore. Riprova tra un po'.",
+    "recording": "● Registrazione",
+    "recording_failed": "Impossibile salvare la registrazione"
   },
   "pt": {
     "watch_live": "Ver em direto",
@@ -199,7 +211,9 @@ const STRINGS = /* translations */ {
     "err_viewers": "Há demasiadas pessoas a ver esta câmara ao mesmo tempo.",
     "err_permission": "Esta conta não tem permissão para ver a câmara.",
     "err_device": "A câmara reportou um erro. Tente novamente.",
-    "err_service": "A EZVIZ devolveu um erro. Tente novamente daqui a pouco."
+    "err_service": "A EZVIZ devolveu um erro. Tente novamente daqui a pouco.",
+    "recording": "● A gravar",
+    "recording_failed": "Não foi possível guardar a gravação"
   },
   "pt-BR": {
     "watch_live": "Ver ao vivo",
@@ -225,7 +239,9 @@ const STRINGS = /* translations */ {
     "err_viewers": "Tem gente demais assistindo a esta câmera ao mesmo tempo.",
     "err_permission": "Esta conta não tem permissão para ver a câmera.",
     "err_device": "A câmera informou um erro. Tente de novo.",
-    "err_service": "A EZVIZ retornou um erro. Tente de novo daqui a pouco."
+    "err_service": "A EZVIZ retornou um erro. Tente de novo daqui a pouco.",
+    "recording": "● Gravando",
+    "recording_failed": "Não foi possível salvar a gravação"
   },
   "nl": {
     "watch_live": "Live bekijken",
@@ -251,7 +267,9 @@ const STRINGS = /* translations */ {
     "err_viewers": "Te veel mensen kijken tegelijk naar deze camera.",
     "err_permission": "Dit account mag de camera niet bekijken.",
     "err_device": "De camera meldde een fout. Probeer het opnieuw.",
-    "err_service": "EZVIZ gaf een fout terug. Probeer het later opnieuw."
+    "err_service": "EZVIZ gaf een fout terug. Probeer het later opnieuw.",
+    "recording": "● Opnemen",
+    "recording_failed": "Kan de opname niet opslaan"
   }
 } /* end translations */;
 
@@ -414,6 +432,16 @@ class EzvizCloudLiveCard extends HTMLElement {
       this._fail(`EZVIZ Cloud: ${err.message || err.code || err}`);
       return;
     }
+    // Record mode lives in the integration; an older integration just answers an error.
+    this._session = null;
+    try {
+      ({ session_id: this._session } = await this._hass.callWS({
+        type: "ezviz_cloud/recording/start",
+        serial: this._config.serial,
+      }));
+    } catch (err) {
+      this._session = null;
+    }
     this._showProgress(10, "loading_player");
     const { serial, channel, max_seconds } = this._config;
     // Cameras with encryption off play without a code.
@@ -436,11 +464,23 @@ if(window.EZUIKit){
 const o=${opts};
 const E=EZUIKit.EZUIKitPlayer.EVENTS;
 send({stage:25,key:"loading_decoder"});
-const player=new EZUIKit.EZUIKitPlayer({id:'v',width:innerWidth,height:innerHeight,...o,
+const R=${this._session ? "true" : "false"};
+// Recording draws the player at 720p so the file doesn't depend on the card's size.
+const player=new EZUIKit.EZUIKitPlayer({id:'v',width:R?1280:innerWidth,height:R?720:innerHeight,...o,
   handleError:(e)=>send({error:e&&(e.msg||e.data&&e.data.msg||e.type)})});
 player.eventEmitter.on(E.decoderLoaded,()=>send({stage:60,key:"waking_camera"}));
 player.eventEmitter.on(E.videoInfo,()=>send({stage:90,key:"starting_video"}));
-player.eventEmitter.on(E.firstFrameDisplay,()=>send({ready:true}));
+let rec=null;
+const startRec=()=>{
+  const c=document.querySelector('#v canvas');
+  const type=['video/mp4;codecs=avc1','video/webm;codecs=vp9','video/webm'].find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t));
+  if(!c||!type)return send({recError:true});
+  rec=new MediaRecorder(c.captureStream(15),{mimeType:type,videoBitsPerSecond:1500000});
+  rec.ondataavailable=(e)=>{if(e.data.size)send({chunk:e.data,type});};
+  rec.start(2000);
+  send({recording:true});
+};
+player.eventEmitter.on(E.firstFrameDisplay,()=>{send({ready:true});if(R)startRec();});
 // Stream failures (camera did not answer, bad code...) only arrive as messages.
 player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error:msg})});
 }
@@ -448,8 +488,17 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
     this._onMessage = (ev) => {
       const m = ev.source === iframe.contentWindow && ev.data?.ezvizCloud;
       if (!m) return;
-      // The player's own messages exist only in English and Chinese.
+      if (m.recording) {
+        this._setBadge(t(this._lang, "recording"));
+        this._hass
+          .callWS({ type: "ezviz_cloud/recording/first_frame", session_id: this._session })
+          .catch(() => {});
+        return;
+      }
+      if (m.chunk) return this._upload(m.chunk, m.type);
+      if (m.recError) return this._recordingFailed();
       if (m.errorKey) this._fail(t(this._lang, m.errorKey));
+      // The player's own messages exist only in English and Chinese.
       else if ("error" in m) {
         const known = PLAYER_ERRORS.find(([re]) => re.test(m.error || ""));
         this._fail(
@@ -469,6 +518,53 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
     );
   }
 
+  // Chunks go up in order, one at a time, with the user's own session.
+  _upload(blob, type) {
+    const sid = this._session;
+    if (!sid) return;
+    this._uploads = (this._uploads || Promise.resolve())
+      .then(async () => {
+        const res = await this._hass.fetchWithAuth(`/api/ezviz_cloud/recording/${sid}`, {
+          method: "POST",
+          body: blob,
+          headers: { "Content-Type": type },
+        });
+        if (!res.ok) throw new Error(`upload ${res.status}`);
+      })
+      .catch(() => this._recordingFailed());
+  }
+
+  // ponytail: the iframe goes away with the stream, so up to the last 2 s of
+  // video are lost; keep the iframe alive until the recorder flushes if that matters.
+  _finishRecording() {
+    const sid = this._session;
+    if (!sid) return;
+    this._session = null;
+    const uploads = this._uploads || Promise.resolve();
+    this._uploads = null;
+    uploads.finally(() =>
+      this._hass.callWS({ type: "ezviz_cloud/recording/stop", session_id: sid }).catch(() => {}),
+    );
+  }
+
+  _recordingFailed() {
+    if (!this._session) return;
+    this._finishRecording();
+    this._setBadge(t(this._lang, "recording_failed"));
+    setTimeout(() => this._setBadge(null), 5000);
+  }
+
+  _setBadge(text) {
+    this._badge?.remove();
+    this._badge = null;
+    if (!text || !this._box) return;
+    this._badge = document.createElement("div");
+    this._badge.style.cssText =
+      "position:absolute;top:8px;left:8px;padding:2px 8px;border-radius:10px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;pointer-events:none";
+    this._badge.textContent = text;
+    this._box.appendChild(this._badge);
+  }
+
   _fail(message) {
     this._stop();
     this._render(message);
@@ -476,8 +572,10 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
 
   _stop() {
     clearTimeout(this._timer);
+    this._finishRecording();
     window.removeEventListener("message", this._onMessage);
     this._hideProgress();
+    this._setBadge(null);
     if (this._config && this._box?.querySelector("iframe")) this._render();
   }
 }
