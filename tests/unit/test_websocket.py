@@ -236,3 +236,15 @@ async def test_first_frame_after_account_unloaded() -> None:
     conn = await _run(ws_recording_first_frame, _rec_hass([], sessions), {"session_id": "sid"})
     conn.send_result.assert_called_once_with(1)
     sessions.save_photo.assert_not_awaited()
+
+
+def test_manual_start_records_in_view_mode() -> None:
+    sessions = MagicMock()
+    sessions.start.return_value = "sid"
+    conn = MagicMock()
+    hass = _rec_hass([_rec_entry("view")], sessions)
+    ws_recording_start(hass, conn, {"id": 1, "type": "x", "serial": "BK1", "manual": True})
+    conn.send_result.assert_called_once_with(1, {"session_id": "sid"})
+    conn = MagicMock()
+    ws_recording_start(hass, conn, {"id": 1, "type": "x", "serial": "UNKNOWN", "manual": True})
+    conn.send_result.assert_called_once_with(1, {"session_id": None})

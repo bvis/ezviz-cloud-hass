@@ -114,15 +114,27 @@ def _entry_for_serial(hass: HomeAssistant, serial: str) -> ConfigEntry | None:
     )
 
 
-@websocket_command({vol.Required("type"): f"{DOMAIN}/recording/start", vol.Required("serial"): str})
+@websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/recording/start",
+        vol.Required("serial"): str,
+        vol.Optional("manual", default=False): bool,
+    }
+)
 @callback
 def ws_recording_start(
     hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
 ) -> None:
-    """Open an upload session if the camera is in record mode and nobody is recording it."""
+    """Open an upload session if nobody is recording the camera.
+
+    On its own the card only records in record mode; `manual` is the user pressing
+    Record during the live view, whatever the mode.
+    """
     entry = _entry_for_serial(hass, msg["serial"])
     session_id = None
-    if entry is not None and entry.runtime_data.modes.get(msg["serial"]) == MODE_RECORD:
+    if entry is not None and (
+        msg.get("manual") or entry.runtime_data.modes.get(msg["serial"]) == MODE_RECORD
+    ):
         session_id = hass.data[DATA_RECORDER].start(msg["serial"])
     connection.send_result(msg["id"], {"session_id": session_id})
 

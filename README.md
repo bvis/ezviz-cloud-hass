@@ -18,7 +18,7 @@ The built-in EZVIZ integration plays video over local RTSP, so battery devices (
 - **Live view card** (`custom:ezviz-cloud-live-card`) with a visual editor, shipped with the integration. No Lovelace resource to add by hand.
 - **Wakes sleeping battery cameras** when you press *Watch live*, typically showing video within 5 seconds (up to 15 the first time a browser loads the player).
 - **Works with video encryption on.** The verification code from the device label decrypts the stream in the browser.
-- **Saves battery**: the stream stops after 60 seconds (configurable) or as soon as you leave the view.
+- **Saves battery**: the stream stops after 60 seconds (configurable), when you press *Stop*, or as soon as you leave the view.
 - **In your language**: English, Spanish, Catalan, French, German, Italian, Portuguese (Portugal and Brazil) and Dutch, following each Home Assistant user's language.
 - **Recordings** (optional): set a camera's *Mode* to *Record* and every live view opened from the card is saved to Home Assistant's media folder, as a 720p video plus a full-resolution photo, and deleted after the retention you choose. Browse them in *Media → My media → ezviz_cloud*.
 - **Access token handled for you.** The token lives 7 days; the integration renews it when it's needed and keeps it out of entity states and the recorder.
@@ -105,6 +105,7 @@ max_seconds: 60          # optional, default 60
 Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds; Home Assistant also asks EZVIZ for a full-resolution photo once the video starts. Files go to `media/ezviz_cloud/<serial>/`, named after the start time.
 
 - Only live views opened from the card are recorded. Waking the camera with its button or from the EZVIZ app isn't.
+- During the live view, *● Record* / *■ Stop recording* start or end a recording on the spot, whatever the mode: switch to recording when you see something, or stop it without closing the stream.
 - If two browsers open the same camera, only the first one records.
 - Closing the tab keeps what was uploaded so far; the last couple of seconds may be missing.
 - **Configure** → **Recordings** sets how many days to keep them (default 10) and the maximum per camera (default 100, 0 = no limit). Older ones are deleted at startup, once a day and after each new recording.

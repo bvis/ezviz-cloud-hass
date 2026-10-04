@@ -45,7 +45,10 @@ const STRINGS = /* translations */ {
     "err_device": "The camera reported an error. Try again.",
     "err_service": "EZVIZ returned an error. Try again in a while.",
     "recording": "● Recording",
-    "recording_failed": "Couldn't save the recording"
+    "recording_failed": "Couldn't save the recording",
+    "stop": "Stop",
+    "record": "● Record",
+    "stop_recording": "■ Stop recording"
   },
   "es": {
     "watch_live": "Ver en directo",
@@ -73,7 +76,10 @@ const STRINGS = /* translations */ {
     "err_device": "La cámara ha dado un error. Vuelve a intentarlo.",
     "err_service": "EZVIZ ha dado un error. Vuelve a intentarlo en un rato.",
     "recording": "● Grabando",
-    "recording_failed": "No se ha podido guardar la grabación"
+    "recording_failed": "No se ha podido guardar la grabación",
+    "stop": "Detener",
+    "record": "● Grabar",
+    "stop_recording": "■ Dejar de grabar"
   },
   "ca": {
     "watch_live": "Veure en directe",
@@ -101,7 +107,10 @@ const STRINGS = /* translations */ {
     "err_device": "La càmera ha donat un error. Torna-ho a provar.",
     "err_service": "EZVIZ ha donat un error. Torna-ho a provar d'aquí a una estona.",
     "recording": "● Gravant",
-    "recording_failed": "No s'ha pogut desar l'enregistrament"
+    "recording_failed": "No s'ha pogut desar l'enregistrament",
+    "stop": "Atura",
+    "record": "● Grava",
+    "stop_recording": "■ Deixa de gravar"
   },
   "fr": {
     "watch_live": "Voir en direct",
@@ -129,7 +138,10 @@ const STRINGS = /* translations */ {
     "err_device": "La caméra a signalé une erreur. Réessayez.",
     "err_service": "EZVIZ a renvoyé une erreur. Réessayez dans un moment.",
     "recording": "● Enregistrement",
-    "recording_failed": "Impossible d'enregistrer la vidéo"
+    "recording_failed": "Impossible d'enregistrer la vidéo",
+    "stop": "Arrêter",
+    "record": "● Enregistrer",
+    "stop_recording": "■ Arrêter l'enregistrement"
   },
   "de": {
     "watch_live": "Live ansehen",
@@ -157,7 +169,10 @@ const STRINGS = /* translations */ {
     "err_device": "Die Kamera hat einen Fehler gemeldet. Versuche es erneut.",
     "err_service": "EZVIZ hat einen Fehler zurückgegeben. Versuche es später erneut.",
     "recording": "● Aufnahme",
-    "recording_failed": "Aufnahme konnte nicht gespeichert werden"
+    "recording_failed": "Aufnahme konnte nicht gespeichert werden",
+    "stop": "Stoppen",
+    "record": "● Aufnehmen",
+    "stop_recording": "■ Aufnahme beenden"
   },
   "it": {
     "watch_live": "Guarda dal vivo",
@@ -185,7 +200,10 @@ const STRINGS = /* translations */ {
     "err_device": "La telecamera ha segnalato un errore. Riprova.",
     "err_service": "EZVIZ ha restituito un errore. Riprova tra un po'.",
     "recording": "● Registrazione",
-    "recording_failed": "Impossibile salvare la registrazione"
+    "recording_failed": "Impossibile salvare la registrazione",
+    "stop": "Ferma",
+    "record": "● Registra",
+    "stop_recording": "■ Ferma la registrazione"
   },
   "pt": {
     "watch_live": "Ver em direto",
@@ -213,7 +231,10 @@ const STRINGS = /* translations */ {
     "err_device": "A câmara reportou um erro. Tente novamente.",
     "err_service": "A EZVIZ devolveu um erro. Tente novamente daqui a pouco.",
     "recording": "● A gravar",
-    "recording_failed": "Não foi possível guardar a gravação"
+    "recording_failed": "Não foi possível guardar a gravação",
+    "stop": "Parar",
+    "record": "● Gravar",
+    "stop_recording": "■ Parar de gravar"
   },
   "pt-BR": {
     "watch_live": "Ver ao vivo",
@@ -241,7 +262,10 @@ const STRINGS = /* translations */ {
     "err_device": "A câmera informou um erro. Tente de novo.",
     "err_service": "A EZVIZ retornou um erro. Tente de novo daqui a pouco.",
     "recording": "● Gravando",
-    "recording_failed": "Não foi possível salvar a gravação"
+    "recording_failed": "Não foi possível salvar a gravação",
+    "stop": "Parar",
+    "record": "● Gravar",
+    "stop_recording": "■ Parar de gravar"
   },
   "nl": {
     "watch_live": "Live bekijken",
@@ -269,7 +293,10 @@ const STRINGS = /* translations */ {
     "err_device": "De camera meldde een fout. Probeer het opnieuw.",
     "err_service": "EZVIZ gaf een fout terug. Probeer het later opnieuw.",
     "recording": "● Opnemen",
-    "recording_failed": "Kan de opname niet opslaan"
+    "recording_failed": "Kan de opname niet opslaan",
+    "stop": "Stoppen",
+    "record": "● Opnemen",
+    "stop_recording": "■ Opname stoppen"
   }
 } /* end translations */;
 
@@ -380,6 +407,7 @@ class EzvizCloudLiveCard extends HTMLElement {
         <button style="font:inherit;padding:10px 18px;border:0;border-radius:18px;cursor:pointer;background:var(--primary-color);color:var(--text-primary-color,#fff)"></button>
       </div>`;
     this._box = this._card.firstElementChild;
+    this._recButton = null;
     this._box.firstElementChild.textContent = message;
     this._box.querySelector("button").textContent = t(this._lang, "watch_live");
     this._box.querySelector("button").addEventListener("click", () => this._play());
@@ -462,7 +490,7 @@ class EzvizCloudLiveCard extends HTMLElement {
     iframe.setAttribute("allow", "autoplay; fullscreen");
     // The player runs inside the iframe; it reports back with postMessage.
     iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8">
-<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#v,#v canvas{width:100%!important;height:100%!important}</style>
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#v,#v canvas{width:100%!important;height:100%!important}#v{width:1280px!important;height:720px!important;transform-origin:0 0}</style>
 <script>const send=(m)=>parent.postMessage({ezvizCloud:m},"*");</script>
 <script src="${EZUIKIT}" onerror="send({errorKey:'player_load_failed'})"></script></head><body><div id="v"></div><script>
 if(window.EZUIKit){
@@ -470,8 +498,11 @@ const o=${opts};
 const E=EZUIKit.EZUIKitPlayer.EVENTS;
 send({stage:25,key:"loading_decoder"});
 const R=${this._session ? "true" : "false"};
-// Recording draws the player at 720p so the file doesn't depend on the card's size.
-const player=new EZUIKit.EZUIKitPlayer({id:'v',width:R?1280:innerWidth,height:R?720:innerHeight,...o,
+// The player sizes its canvas to its box: a fixed 720p box, scaled down to the
+// card, keeps recordings at 720p whatever the card's size.
+const fit=()=>{document.getElementById('v').style.transform='scale('+Math.min(innerWidth/1280,innerHeight/720)+')';};
+fit();addEventListener('resize',fit);
+const player=new EZUIKit.EZUIKitPlayer({id:'v',width:1280,height:720,...o,
   handleError:(e)=>send({error:e&&(e.msg||e.data&&e.data.msg||e.type)})});
 player.eventEmitter.on(E.decoderLoaded,()=>send({stage:60,key:"waking_camera"}));
 player.eventEmitter.on(E.videoInfo,()=>send({stage:90,key:"starting_video"}));
@@ -482,9 +513,16 @@ const startRec=()=>{
   if(!c||!type)return send({recError:true});
   rec=new MediaRecorder(c.captureStream(15),{mimeType:type,videoBitsPerSecond:1500000});
   rec.ondataavailable=(e)=>{if(e.data.size)send({chunk:e.data,type});};
+  rec.onstop=()=>send({recStopped:true});
   rec.start(2000);
   send({recording:true});
 };
+// Record / Stop recording pressed on the card during the live view.
+addEventListener('message',(e)=>{
+  if(e.source!==parent)return;
+  if(e.data==='start-recording'&&!(rec&&rec.state!=='inactive'))startRec();
+  if(e.data==='stop-recording'&&rec&&rec.state!=='inactive')rec.stop();
+});
 player.eventEmitter.on(E.firstFrameDisplay,()=>{send({ready:true});if(R)startRec();});
 // Stream failures (camera did not answer, bad code...) only arrive as messages.
 player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error:msg})});
@@ -501,6 +539,12 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
         return;
       }
       if (m.chunk) return this._upload(m.chunk, m.type);
+      // The recorder flushed its last chunk after Stop recording: close the file.
+      if (m.recStopped) {
+        this._finishRecording();
+        this._setBadge(null);
+        return this._paintRecordButton();
+      }
       if (m.recError) return this._recordingFailed();
       if (m.errorKey) this._fail(t(this._lang, m.errorKey));
       // The player's own messages exist only in English and Chinese.
@@ -512,15 +556,69 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
             : t(this._lang, "could_not_start", { msg: m.error || t(this._lang, "player_error") }),
         );
       }
-      else if (m.ready) this._hideProgress();
+      else if (m.ready) {
+        this._hideProgress();
+        this._paintRecordButton();
+      }
       else this._showProgress(m.stage, m.key);
     };
     window.addEventListener("message", this._onMessage);
     this._box.insertBefore(iframe, this._overlay);
+    const stop = document.createElement("button");
+    stop.textContent = `■ ${t(this._lang, "stop")}`;
+    stop.style.cssText =
+      "position:absolute;right:8px;bottom:8px;z-index:1;font:inherit;font-size:12px;padding:4px 10px;border:0;border-radius:12px;cursor:pointer;background:rgba(0,0,0,.6);color:#fff";
+    stop.addEventListener("click", () => this._stop());
+    this._box.appendChild(stop);
     this._timer = setTimeout(
       () => (this._overlay ? this._fail(t(this._lang, "no_video", { s: max_seconds })) : this._stop()),
       max_seconds * 1000,
     );
+  }
+
+  // Record / Stop recording during the live view, whatever the camera's mode.
+  _paintRecordButton() {
+    if (!this._box?.querySelector("iframe")) return;
+    if (!this._recButton) {
+      this._recButton = document.createElement("button");
+      this._recButton.style.cssText =
+        "position:absolute;left:8px;bottom:8px;z-index:1;font:inherit;font-size:12px;padding:4px 10px;border:0;border-radius:12px;cursor:pointer;background:rgba(0,0,0,.6);color:#fff";
+      this._recButton.addEventListener("click", () => this._toggleRecording());
+    }
+    this._recButton.disabled = false;
+    this._recButton.textContent = this._session
+      ? t(this._lang, "stop_recording")
+      : t(this._lang, "record");
+    this._box.appendChild(this._recButton);
+  }
+
+  async _toggleRecording() {
+    const frame = this._box?.querySelector("iframe")?.contentWindow;
+    if (!frame) return;
+    if (this._session) {
+      // The iframe answers with recStopped once the last chunk is out.
+      this._recButton.disabled = true;
+      frame.postMessage("stop-recording", "*");
+      return;
+    }
+    let session = null;
+    try {
+      ({ session_id: session } = await this._hass.callWS({
+        type: "ezviz_cloud/recording/start",
+        serial: this._config.serial,
+        manual: true,
+      }));
+    } catch (err) {
+      session = null;
+    }
+    if (!session) {
+      this._setBadge(t(this._lang, "recording_failed"));
+      setTimeout(() => this._setBadge(null), 5000);
+      return;
+    }
+    this._session = session;
+    this._paintRecordButton();
+    frame.postMessage("start-recording", "*");
   }
 
   // Chunks go up in order, one at a time, with the user's own session.
@@ -555,6 +653,7 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
   _recordingFailed() {
     if (!this._session) return;
     this._finishRecording();
+    this._paintRecordButton();
     this._setBadge(t(this._lang, "recording_failed"));
     setTimeout(() => this._setBadge(null), 5000);
   }
