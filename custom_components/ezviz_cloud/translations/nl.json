@@ -38,11 +38,25 @@
   "options": {
     "step": {
       "init": {
+        "menu_options": {
+          "codes": "Verificatiecodes",
+          "recordings": "Opnames"
+        }
+      },
+      "codes": {
         "title": "Verificatiecodes",
         "description": "Kies een camera en typ de verificatiecode van het label (zes hoofdletters). De kaart gebruikt die, zodat de code niet in het dashboard hoeft te staan. Camera's met ✓ hebben er al een; laat de code leeg om hem te verwijderen.",
         "data": {
           "serial": "Camera",
           "code": "Verificatiecode"
+        }
+      },
+      "recordings": {
+        "title": "Opnames",
+        "description": "Hoe lang opnames in de mediamap van Home Assistant blijven. Oudere worden automatisch verwijderd.",
+        "data": {
+          "retention_days": "Bewaren (dagen)",
+          "max_per_camera": "Maximum per camera (0 = geen limiet)"
         }
       }
     },

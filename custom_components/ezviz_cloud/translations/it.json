@@ -38,11 +38,25 @@
   "options": {
     "step": {
       "init": {
+        "menu_options": {
+          "codes": "Codici di verifica",
+          "recordings": "Registrazioni"
+        }
+      },
+      "codes": {
         "title": "Codici di verifica",
         "description": "Scegli una telecamera e inserisci il codice di verifica della sua etichetta (sei lettere maiuscole). La scheda lo usa, così il codice non deve stare nella dashboard. Le telecamere con ✓ ne hanno già uno; lascia il codice vuoto per rimuoverlo.",
         "data": {
           "serial": "Telecamera",
           "code": "Codice di verifica"
+        }
+      },
+      "recordings": {
+        "title": "Registrazioni",
+        "description": "Per quanto tempo le registrazioni restano nella cartella multimediale di Home Assistant. Le più vecchie vengono eliminate automaticamente.",
+        "data": {
+          "retention_days": "Conserva per (giorni)",
+          "max_per_camera": "Massimo per telecamera (0 = nessun limite)"
         }
       }
     },

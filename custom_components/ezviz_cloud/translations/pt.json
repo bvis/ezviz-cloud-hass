@@ -38,11 +38,25 @@
   "options": {
     "step": {
       "init": {
+        "menu_options": {
+          "codes": "Códigos de verificação",
+          "recordings": "Gravações"
+        }
+      },
+      "codes": {
         "title": "Códigos de verificação",
         "description": "Escolha uma câmara e escreva o código de verificação da etiqueta (seis letras maiúsculas). O cartão usa-o, por isso o código não tem de estar no painel. As câmaras marcadas com ✓ já têm um; deixe o código vazio para o remover.",
         "data": {
           "serial": "Câmara",
           "code": "Código de verificação"
+        }
+      },
+      "recordings": {
+        "title": "Gravações",
+        "description": "Durante quanto tempo as gravações ficam na pasta multimédia do Home Assistant. As mais antigas são apagadas automaticamente.",
+        "data": {
+          "retention_days": "Manter durante (dias)",
+          "max_per_camera": "Máximo por câmara (0 = sem limite)"
         }
       }
     },

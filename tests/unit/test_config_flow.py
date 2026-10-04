@@ -92,7 +92,7 @@ async def test_options_form_lists_cameras_once_and_marks_stored_codes() -> None:
         Camera("BK1", 2, "Door 2", True),
         Camera("BK2", 1, "Yard", False),
     ]
-    result = await _options_flow(cameras=cams).async_step_init()
+    result = await _options_flow(cameras=cams).async_step_codes()
     assert result["type"] == "form"
     options = result["data_schema"].schema["serial"].config["options"]
     assert [(o["value"], o["label"]) for o in options] == [
@@ -110,17 +110,40 @@ async def test_options_form_lists_cameras_once_and_marks_stored_codes() -> None:
     ],
 )
 async def test_options_aborts(kwargs: dict, reason: str) -> None:
-    result = await _options_flow(**kwargs).async_step_init()
+    result = await _options_flow(**kwargs).async_step_codes()
     assert result["type"] == "abort"
     assert result["reason"] == reason
 
 
 async def test_options_stores_code_uppercased() -> None:
-    result = await _options_flow().async_step_init({"serial": "BK2", "code": " abcdef "})
+    result = await _options_flow().async_step_codes({"serial": "BK2", "code": " abcdef "})
     assert result["type"] == "create_entry"
     assert result["data"] == {"codes": {"BK1": "OLDOLD", "BK2": "ABCDEF"}}
 
 
 async def test_options_empty_code_removes_it() -> None:
-    result = await _options_flow().async_step_init({"serial": "BK1"})
+    result = await _options_flow().async_step_codes({"serial": "BK1"})
     assert result["data"] == {"codes": {}}
+
+
+async def test_options_menu() -> None:
+    result = await _options_flow().async_step_init()
+    assert result["type"] == "menu"
+    assert result["menu_options"] == ["codes", "recordings"]
+
+
+async def test_recordings_step_shows_current_values() -> None:
+    flow = _options_flow()
+    flow.config_entry.options["retention_days"] = 7
+    result = await flow.async_step_recordings()
+    assert result["type"] == "form"
+    defaults = {str(k): k.default() for k in result["data_schema"].schema}
+    assert defaults == {"retention_days": 7, "max_per_camera": 100}
+
+
+async def test_recordings_step_keeps_codes() -> None:
+    result = await _options_flow().async_step_recordings(
+        {"retention_days": 30.0, "max_per_camera": 0.0}
+    )
+    assert result["type"] == "create_entry"
+    assert result["data"] == {"codes": {"BK1": "OLDOLD"}, "retention_days": 30, "max_per_camera": 0}

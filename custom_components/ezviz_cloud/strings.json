@@ -38,11 +38,25 @@
   "options": {
     "step": {
       "init": {
+        "menu_options": {
+          "codes": "Verification codes",
+          "recordings": "Recordings"
+        }
+      },
+      "codes": {
         "title": "Verification codes",
         "description": "Pick a camera and type the verification code from its label (six capital letters). The card uses it so the code doesn't have to be in the dashboard. Cameras marked ✓ already have one; leave the code empty to remove it.",
         "data": {
           "serial": "Camera",
           "code": "Verification code"
+        }
+      },
+      "recordings": {
+        "title": "Recordings",
+        "description": "How long recordings are kept in Home Assistant's media folder. Older ones are deleted automatically.",
+        "data": {
+          "retention_days": "Keep for (days)",
+          "max_per_camera": "Maximum per camera (0 = no limit)"
         }
       }
     },

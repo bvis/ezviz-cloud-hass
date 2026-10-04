@@ -38,11 +38,25 @@
   "options": {
     "step": {
       "init": {
+        "menu_options": {
+          "codes": "Codis de verificació",
+          "recordings": "Enregistraments"
+        }
+      },
+      "codes": {
         "title": "Codis de verificació",
         "description": "Tria una càmera i escriu el codi de verificació de la seva etiqueta (sis lletres majúscules). La targeta el fa servir i així el codi no ha de ser al tauler. Les càmeres marcades amb ✓ ja en tenen un; deixa el codi buit per treure'l.",
         "data": {
           "serial": "Càmera",
           "code": "Codi de verificació"
+        }
+      },
+      "recordings": {
+        "title": "Enregistraments",
+        "description": "Quant de temps es guarden els enregistraments a la carpeta multimèdia de Home Assistant. Els més antics s'esborren sols.",
+        "data": {
+          "retention_days": "Conserva (dies)",
+          "max_per_camera": "Màxim per càmera (0 = sense límit)"
         }
       }
     },

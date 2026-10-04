@@ -38,11 +38,25 @@
   "options": {
     "step": {
       "init": {
+        "menu_options": {
+          "codes": "Codes de vérification",
+          "recordings": "Enregistrements"
+        }
+      },
+      "codes": {
         "title": "Codes de vérification",
         "description": "Choisissez une caméra et saisissez le code de vérification de son étiquette (six lettres majuscules). La carte l'utilise, le code n'a donc pas besoin d'être dans le tableau de bord. Les caméras marquées ✓ en ont déjà un ; laissez le code vide pour le supprimer.",
         "data": {
           "serial": "Caméra",
           "code": "Code de vérification"
+        }
+      },
+      "recordings": {
+        "title": "Enregistrements",
+        "description": "Durée de conservation des enregistrements dans le dossier multimédia de Home Assistant. Les plus anciens sont supprimés automatiquement.",
+        "data": {
+          "retention_days": "Conserver (jours)",
+          "max_per_camera": "Maximum par caméra (0 = sans limite)"
         }
       }
     },

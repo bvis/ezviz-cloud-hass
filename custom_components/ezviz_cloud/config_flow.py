@@ -15,6 +15,9 @@ from homeassistant.config_entries import (
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    NumberSelector,
+    NumberSelectorConfig,
+    NumberSelectorMode,
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
@@ -30,8 +33,12 @@ from .const import (
     CONF_APP_SECRET,
     CONF_CODE,
     CONF_CODES,
+    CONF_MAX_PER_CAMERA,
     CONF_REGION,
+    CONF_RETENTION_DAYS,
     CONF_SERIAL,
+    DEFAULT_MAX_PER_CAMERA,
+    DEFAULT_RETENTION_DAYS,
     DOMAIN,
     REGIONS,
 )
@@ -102,7 +109,7 @@ class EzvizCloudConfigFlow(ConfigFlow, domain=DOMAIN):
 class EzvizCloudOptionsFlow(OptionsFlow):
     """Store the verification code of one camera at a time."""
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_codes(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Pick a camera of the account and type its code; an empty code removes it."""
         codes: dict[str, str] = dict(self.config_entry.options.get(CONF_CODES, {}))
         if user_input is not None:
@@ -135,7 +142,7 @@ class EzvizCloudOptionsFlow(OptionsFlow):
             for c in devices.values()
         ]
         return self.async_show_form(
-            step_id="init",
+            step_id="codes",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_SERIAL, default=options[0]["value"]): SelectSelector(
@@ -143,6 +150,43 @@ class EzvizCloudOptionsFlow(OptionsFlow):
                     ),
                     vol.Optional(CONF_CODE): TextSelector(
                         TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_init(self, _user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Codes and recordings are separate, so changing one never resets the other."""
+        return self.async_show_menu(step_id="init", menu_options=["codes", "recordings"])
+
+    async def async_step_recordings(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """How long recordings are kept."""
+        options = self.config_entry.options
+        if user_input is not None:
+            return self.async_create_entry(
+                data={
+                    **options,
+                    CONF_RETENTION_DAYS: int(user_input[CONF_RETENTION_DAYS]),
+                    CONF_MAX_PER_CAMERA: int(user_input[CONF_MAX_PER_CAMERA]),
+                }
+            )
+        return self.async_show_form(
+            step_id="recordings",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(
+                        CONF_RETENTION_DAYS,
+                        default=options.get(CONF_RETENTION_DAYS, DEFAULT_RETENTION_DAYS),
+                    ): NumberSelector(
+                        NumberSelectorConfig(min=1, max=90, step=1, mode=NumberSelectorMode.BOX)
+                    ),
+                    vol.Required(
+                        CONF_MAX_PER_CAMERA,
+                        default=options.get(CONF_MAX_PER_CAMERA, DEFAULT_MAX_PER_CAMERA),
+                    ): NumberSelector(
+                        NumberSelectorConfig(min=0, max=1000, step=1, mode=NumberSelectorMode.BOX)
                     ),
                 }
             ),

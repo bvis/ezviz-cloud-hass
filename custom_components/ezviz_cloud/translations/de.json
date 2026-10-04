@@ -38,11 +38,25 @@
   "options": {
     "step": {
       "init": {
+        "menu_options": {
+          "codes": "Verifizierungscodes",
+          "recordings": "Aufnahmen"
+        }
+      },
+      "codes": {
         "title": "Verifizierungscodes",
         "description": "Wähle eine Kamera und gib den Verifizierungscode von ihrem Etikett ein (sechs Großbuchstaben). Die Karte verwendet ihn, damit der Code nicht im Dashboard stehen muss. Mit ✓ markierte Kameras haben bereits einen; lass das Feld leer, um ihn zu entfernen.",
         "data": {
           "serial": "Kamera",
           "code": "Verifizierungscode"
+        }
+      },
+      "recordings": {
+        "title": "Aufnahmen",
+        "description": "Wie lange Aufnahmen im Medienordner von Home Assistant aufbewahrt werden. Ältere werden automatisch gelöscht.",
+        "data": {
+          "retention_days": "Aufbewahren (Tage)",
+          "max_per_camera": "Maximum pro Kamera (0 = unbegrenzt)"
         }
       }
     },
