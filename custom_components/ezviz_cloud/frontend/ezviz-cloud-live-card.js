@@ -553,6 +553,7 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
       if (m.recStopped) {
         this._finishRecording();
         this._setBadge(null);
+        if (this._afterFlush) return this._afterFlush();
         return this._paintRecordButton();
       }
       if (m.recError) return this._recordingFailed();
@@ -647,8 +648,6 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
       .catch(() => this._recordingFailed());
   }
 
-  // ponytail: the iframe goes away with the stream, so up to the last 2 s of
-  // video are lost; keep the iframe alive until the recorder flushes if that matters.
   _finishRecording() {
     const sid = this._session;
     if (!sid) return;
@@ -680,17 +679,29 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
   }
 
   _fail(message) {
-    this._stop();
-    this._render(message);
+    this._stop(message, true);
   }
 
-  _stop() {
+  _stop(message = "", render = false, flushed = false) {
     clearTimeout(this._timer);
+    // Recording: let the recorder hand over what it still holds (Chrome emits MP4
+    // in fragments of several seconds) before the iframe goes away.
+    const frame = this._box?.querySelector("iframe")?.contentWindow;
+    if (this._session && frame && this.isConnected && !flushed && !this._afterFlush) {
+      this._afterFlush = () => {
+        this._afterFlush = null;
+        this._stop(message, render, true);
+      };
+      frame.postMessage("stop-recording", "*");
+      setTimeout(() => this._afterFlush?.(), 3000);
+      return;
+    }
+    this._afterFlush = null;
     this._finishRecording();
     window.removeEventListener("message", this._onMessage);
     this._hideProgress();
     this._setBadge(null);
-    if (this._config && this._box?.querySelector("iframe")) this._render();
+    if (this._config && (render || this._box?.querySelector("iframe"))) this._render(message);
   }
 }
 

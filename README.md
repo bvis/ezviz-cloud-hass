@@ -107,7 +107,7 @@ Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo
 - Only live views opened from the card are recorded. Waking the camera with its button or from the EZVIZ app isn't.
 - During the live view, *● Record* / *■ Stop recording* start or end a recording on the spot, whatever the mode: switch to recording when you see something, or stop it without closing the stream.
 - If two browsers open the same camera, only the first one records.
-- Closing the tab keeps what was uploaded so far; the last couple of seconds may be missing.
+- *Stop* and leaving the view keep the whole recording. Closing the tab keeps what was uploaded so far, which can miss the last few seconds.
 - **Configure** → **Recordings** sets how many days to keep them (default 10) and the maximum per camera (default 100, 0 = no limit). Older ones are deleted at startup, once a day and after each new recording.
 - The mode is a normal entity, so automations can switch it, for example to record only when nobody is home.
 
