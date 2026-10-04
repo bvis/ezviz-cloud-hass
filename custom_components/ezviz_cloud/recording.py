@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 import uuid
@@ -10,11 +11,22 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from aiohttp import web
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.http import KEY_HASS, HomeAssistantView
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN, MAX_SESSION_BYTES, SESSION_IDLE_TIMEOUT, signal_recorded
+from .const import (
+    DATA_RECORDER,
+    DOMAIN,
+    MAX_CHUNK_BYTES,
+    MAX_SESSION_BYTES,
+    SESSION_IDLE_TIMEOUT,
+    signal_recorded,
+)
+
+_LOGGER = logging.getLogger(__name__)
 
 _STEM_FORMAT = "%Y-%m-%d_%H-%M-%S"
 _SERIAL = re.compile(r"[A-Za-z0-9]+")
@@ -229,3 +241,30 @@ class RecordingSessions:
         for session_id, session in list(self._sessions.items()):
             if now - session.last_chunk > SESSION_IDLE_TIMEOUT:
                 await self.stop(session_id)
+
+
+class RecordingUploadView(HomeAssistantView):
+    """Receives the card's video chunks for an open session."""
+
+    url = "/api/ezviz_cloud/recording/{session_id}"
+    name = "api:ezviz_cloud:recording"
+    requires_auth = True
+
+    async def post(self, request: web.Request, session_id: str) -> web.Response:
+        """Append one chunk to the session's video."""
+        if (request.content_length or 0) > MAX_CHUNK_BYTES:
+            return self.json_message("Chunk too large", 413)
+        sessions = request.app[KEY_HASS].data[DATA_RECORDER]
+        data = await request.read()
+        try:
+            await sessions.append(session_id, data, request.content_type)
+        except SessionNotFoundError:
+            return self.json_message("Unknown session", 404)
+        except SessionTooLargeError:
+            return self.json_message("Recording too large", 413)
+        except UnsupportedTypeError:
+            return self.json_message("Unsupported video type", 415)
+        except OSError as err:
+            _LOGGER.error("Cannot write the recording: %s", err)
+            return self.json_message("Cannot write the recording", 500)
+        return self.json_message("ok")

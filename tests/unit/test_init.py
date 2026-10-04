@@ -13,7 +13,7 @@ from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from custom_components import ezviz_cloud
 from custom_components.ezviz_cloud.api import Camera, EzvizCloudAuthError, EzvizCloudError
 from custom_components.ezviz_cloud.const import CARD_URL, DATA_RECORDER
-from custom_components.ezviz_cloud.recording import RecordingSessions
+from custom_components.ezviz_cloud.recording import RecordingSessions, RecordingUploadView
 
 DATA = {"region": "eu", "app_key": "key", "app_secret": "secret"}
 
@@ -24,6 +24,7 @@ async def test_setup_serves_card_with_content_hash_url() -> None:
     hass.async_add_executor_job = AsyncMock(side_effect=lambda fn: fn())
     hass.config.media_dirs = {"local": "/media"}
     hass.data = {}
+    hass.http.register_view = MagicMock()
     with (
         patch.object(ezviz_cloud, "add_extra_js_url") as add_js,
         patch.object(ezviz_cloud, "async_register_commands") as register_ws,
@@ -32,6 +33,7 @@ async def test_setup_serves_card_with_content_hash_url() -> None:
     ):
         assert await ezviz_cloud.async_setup(hass, {})
     assert isinstance(hass.data[DATA_RECORDER], RecordingSessions)
+    assert isinstance(hass.http.register_view.call_args.args[0], RecordingUploadView)
     assert track_expire.call_args.args[2] == timedelta(seconds=10)
     with patch.object(RecordingSessions, "expire", AsyncMock()) as expire:
         await track_expire.call_args.args[1](None)

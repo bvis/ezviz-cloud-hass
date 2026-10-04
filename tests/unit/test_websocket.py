@@ -5,13 +5,19 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
 from homeassistant.config_entries import ConfigEntryState
 
 from custom_components.ezviz_cloud.api import AccessToken, Camera, EzvizCloudError
+from custom_components.ezviz_cloud.const import DATA_RECORDER
+from custom_components.ezviz_cloud.recording import SessionNotFoundError
 from custom_components.ezviz_cloud.websocket import (
     async_register_commands,
     ws_get_devices,
     ws_get_token,
+    ws_recording_first_frame,
+    ws_recording_start,
+    ws_recording_stop,
 )
 
 EXPIRY = datetime(2026, 10, 11, tzinfo=UTC)
@@ -73,6 +79,9 @@ def test_registers_command() -> None:
     assert [c.args for c in register.call_args_list] == [
         (hass, ws_get_token),
         (hass, ws_get_devices),
+        (hass, ws_recording_start),
+        (hass, ws_recording_first_frame),
+        (hass, ws_recording_stop),
     ]
 
 
@@ -125,3 +134,105 @@ async def test_devices_reports_api_failure() -> None:
     )
     conn = await _call([entry], {}, ws_get_devices)
     assert conn.send_error.call_args.args[:2] == (1, "api_error")
+
+
+def _rec_hass(entries: list[MagicMock], sessions: MagicMock) -> MagicMock:
+    hass = MagicMock()
+    hass.config_entries.async_entries.return_value = entries
+    hass.data = {DATA_RECORDER: sessions}
+    return hass
+
+
+def _rec_entry(mode: str = "record") -> MagicMock:
+    entry = _entry("a")
+    entry.runtime_data.cameras = [Camera("BK1", 1, "Door", True)]
+    entry.runtime_data.modes = {"BK1": mode}
+    return entry
+
+
+def test_start_opens_session_in_record_mode() -> None:
+    sessions = MagicMock()
+    sessions.start.return_value = "sid"
+    conn = MagicMock()
+    ws_recording_start(
+        _rec_hass([_rec_entry()], sessions), conn, {"id": 1, "type": "x", "serial": "BK1"}
+    )
+    conn.send_result.assert_called_once_with(1, {"session_id": "sid"})
+
+
+@pytest.mark.parametrize(("mode", "serial"), [("view", "BK1"), ("record", "UNKNOWN")])
+def test_start_without_recording(mode: str, serial: str) -> None:
+    sessions = MagicMock()
+    conn = MagicMock()
+    ws_recording_start(
+        _rec_hass([_rec_entry(mode)], sessions), conn, {"id": 1, "type": "x", "serial": serial}
+    )
+    conn.send_result.assert_called_once_with(1, {"session_id": None})
+    sessions.start.assert_not_called()
+
+
+def test_start_returns_null_when_busy() -> None:
+    sessions = MagicMock()
+    sessions.start.return_value = None
+    conn = MagicMock()
+    ws_recording_start(
+        _rec_hass([_rec_entry()], sessions), conn, {"id": 1, "type": "x", "serial": "BK1"}
+    )
+    conn.send_result.assert_called_once_with(1, {"session_id": None})
+
+
+async def _run(handler, hass: MagicMock, msg: dict) -> MagicMock:  # type: ignore[no-untyped-def]
+    conn = MagicMock()
+    handler(hass, conn, {"id": 1, "type": "x", **msg})
+    await hass.async_create_background_task.call_args.args[0]
+    return conn
+
+
+async def test_first_frame_saves_photo() -> None:
+    entry = _rec_entry()
+    api = entry.runtime_data.manager.api
+    api.async_capture = AsyncMock(return_value="https://pmseu1.ezvizlife.com/p")
+    api.async_download = AsyncMock(return_value=b"jpg")
+    sessions = MagicMock()
+    sessions.target.return_value = ("BK1", "stem")
+    sessions.save_photo = AsyncMock()
+    conn = await _run(ws_recording_first_frame, _rec_hass([entry], sessions), {"session_id": "sid"})
+    conn.send_result.assert_called_once_with(1)
+    api.async_capture.assert_awaited_once_with("at.x", "BK1")
+    sessions.save_photo.assert_awaited_once_with("BK1", "stem", b"jpg")
+
+
+async def test_first_frame_capture_failure_keeps_session() -> None:
+    entry = _rec_entry()
+    entry.runtime_data.manager.api.async_capture = AsyncMock(side_effect=EzvizCloudError("20008"))
+    sessions = MagicMock()
+    sessions.target.return_value = ("BK1", "stem")
+    sessions.save_photo = AsyncMock()
+    conn = await _run(ws_recording_first_frame, _rec_hass([entry], sessions), {"session_id": "sid"})
+    conn.send_result.assert_called_once_with(1)
+    sessions.save_photo.assert_not_awaited()
+    sessions.stop.assert_not_called()
+
+
+async def test_first_frame_unknown_session() -> None:
+    sessions = MagicMock()
+    sessions.target.side_effect = SessionNotFoundError("sid")
+    conn = await _run(ws_recording_first_frame, _rec_hass([], sessions), {"session_id": "sid"})
+    assert conn.send_error.call_args.args[:2] == (1, "not_found")
+
+
+async def test_stop_closes_session() -> None:
+    sessions = MagicMock()
+    sessions.stop = AsyncMock()
+    conn = await _run(ws_recording_stop, _rec_hass([], sessions), {"session_id": "sid"})
+    sessions.stop.assert_awaited_once_with("sid")
+    conn.send_result.assert_called_once_with(1)
+
+
+async def test_first_frame_after_account_unloaded() -> None:
+    sessions = MagicMock()
+    sessions.target.return_value = ("BK1", "stem")
+    sessions.save_photo = AsyncMock()
+    conn = await _run(ws_recording_first_frame, _rec_hass([], sessions), {"session_id": "sid"})
+    conn.send_result.assert_called_once_with(1)
+    sessions.save_photo.assert_not_awaited()

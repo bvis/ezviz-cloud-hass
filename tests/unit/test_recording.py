@@ -5,14 +5,17 @@ from __future__ import annotations
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.helpers.http import KEY_HASS
 from homeassistant.util import dt as dt_util
 
+from custom_components.ezviz_cloud.const import DATA_RECORDER
 from custom_components.ezviz_cloud.recording import (
     RecordingSessions,
     RecordingStore,
+    RecordingUploadView,
     SessionNotFoundError,
     SessionTooLargeError,
     UnsupportedTypeError,
@@ -211,3 +214,53 @@ async def test_photo_and_stop_without_video(tmp_path: Path) -> None:
         await sessions.stop(sid)  # type: ignore[arg-type]  # second stop is a no-op
     assert send.call_count == 2
     assert [p.suffix for p in (tmp_path / "ezviz_cloud/BK1").iterdir()] == [".jpg"]
+
+
+def _request(
+    sessions: MagicMock, body: bytes = b"ab", ctype: str = "video/mp4", length: int | None = 2
+) -> MagicMock:
+    request = MagicMock()
+    request.app = {KEY_HASS: MagicMock(data={DATA_RECORDER: sessions})}
+    request.content_type = ctype
+    request.content_length = length
+    request.read = AsyncMock(return_value=body)
+    return request
+
+
+@pytest.mark.parametrize(
+    ("exc", "status"),
+    [
+        (None, 200),
+        (SessionNotFoundError("x"), 404),
+        (SessionTooLargeError("x"), 413),
+        (UnsupportedTypeError("x"), 415),
+        (OSError("disk full"), 500),
+    ],
+)
+async def test_upload_view_maps_errors(exc: Exception | None, status: int) -> None:
+    sessions = MagicMock()
+    sessions.append = AsyncMock(side_effect=exc)
+    resp = await RecordingUploadView().post(_request(sessions), "sid")
+    assert resp.status == status
+    sessions.append.assert_awaited_once_with("sid", b"ab", "video/mp4")
+
+
+async def test_upload_unknown_session_404(tmp_path: Path) -> None:
+    sessions, _, _ = _sessions(tmp_path)
+    resp = await RecordingUploadView().post(_request(sessions), "made-up")  # type: ignore[arg-type]
+    assert resp.status == 404
+    assert not (tmp_path / "ezviz_cloud").exists()
+
+
+async def test_upload_rejects_huge_chunk_before_reading() -> None:
+    sessions = MagicMock()
+    request = _request(sessions, length=9 * 1024 * 1024)
+    resp = await RecordingUploadView().post(request, "sid")
+    assert resp.status == 413
+    request.read.assert_not_awaited()
+
+
+def test_upload_view_needs_auth() -> None:
+    view = RecordingUploadView()
+    assert view.requires_auth is True
+    assert view.url == "/api/ezviz_cloud/recording/{session_id}"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -12,7 +13,10 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 
 from .api import EzvizCloudError
-from .const import CONF_CODES, DOMAIN
+from .const import CONF_CODES, DATA_RECORDER, DOMAIN, MODE_RECORD
+from .recording import SessionNotFoundError
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @callback
@@ -20,6 +24,9 @@ def async_register_commands(hass: HomeAssistant) -> None:
     """Register the integration's websocket commands."""
     async_register_command(hass, ws_get_token)
     async_register_command(hass, ws_get_devices)
+    async_register_command(hass, ws_recording_start)
+    async_register_command(hass, ws_recording_first_frame)
+    async_register_command(hass, ws_recording_stop)
 
 
 def _loaded_entries(hass: HomeAssistant) -> list[ConfigEntry]:
@@ -94,3 +101,68 @@ async def ws_get_devices(
             for c in cameras
         ]
     connection.send_result(msg["id"], devices)
+
+
+def _entry_for_serial(hass: HomeAssistant, serial: str) -> ConfigEntry | None:
+    return next(
+        (
+            e
+            for e in _loaded_entries(hass)
+            if any(c.serial == serial for c in e.runtime_data.cameras)
+        ),
+        None,
+    )
+
+
+@websocket_command({vol.Required("type"): f"{DOMAIN}/recording/start", vol.Required("serial"): str})
+@callback
+def ws_recording_start(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Open an upload session if the camera is in record mode and nobody is recording it."""
+    entry = _entry_for_serial(hass, msg["serial"])
+    session_id = None
+    if entry is not None and entry.runtime_data.modes.get(msg["serial"]) == MODE_RECORD:
+        session_id = hass.data[DATA_RECORDER].start(msg["serial"])
+    connection.send_result(msg["id"], {"session_id": session_id})
+
+
+@websocket_command(
+    {vol.Required("type"): f"{DOMAIN}/recording/first_frame", vol.Required("session_id"): str}
+)
+@async_response
+async def ws_recording_first_frame(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """The camera is awake: take the recording's photo. Failures only cost the photo."""
+    sessions = hass.data[DATA_RECORDER]
+    try:
+        serial, stem = sessions.target(msg["session_id"])
+    except SessionNotFoundError:
+        connection.send_error(msg["id"], "not_found", "No open recording with that id")
+        return
+    connection.send_result(msg["id"])
+    entry = _entry_for_serial(hass, serial)
+    if entry is None:
+        return
+    manager = entry.runtime_data.manager
+    try:
+        token = await manager.async_get_token()
+        url = await manager.api.async_capture(token.token, serial)
+        photo = await manager.api.async_download(url)
+    except EzvizCloudError as err:
+        _LOGGER.warning("No photo for the recording of %s: %s", serial, err)
+        return
+    await sessions.save_photo(serial, stem, photo)
+
+
+@websocket_command(
+    {vol.Required("type"): f"{DOMAIN}/recording/stop", vol.Required("session_id"): str}
+)
+@async_response
+async def ws_recording_stop(
+    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Close an upload session and keep what arrived."""
+    await hass.data[DATA_RECORDER].stop(msg["session_id"])
+    connection.send_result(msg["id"])

@@ -38,7 +38,7 @@ from .const import (
     REGIONS,
     signal_recorded,
 )
-from .recording import RecordingSessions, RecordingStore
+from .recording import RecordingSessions, RecordingStore, RecordingUploadView
 from .token import TokenManager
 from .websocket import async_register_commands
 
@@ -78,6 +78,7 @@ async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
         _LOGGER.info("Closed %s recording(s) left open by a restart", recovered)
     sessions = RecordingSessions(hass, store)
     hass.data[DATA_RECORDER] = sessions
+    hass.http.register_view(RecordingUploadView())
 
     async def _expire(_now: datetime) -> None:
         await sessions.expire()
