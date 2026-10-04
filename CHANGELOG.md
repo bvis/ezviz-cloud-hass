@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.1.2] - 2026-10-04
 
 ### Added
 - **Loading progress while the stream starts.** The card shows what it is doing (connecting, loading the decoder, waking the camera, starting the video) with a percentage until the first frame, instead of a black box for 10–15 seconds. **Requests to EZVIZ:** none added.
