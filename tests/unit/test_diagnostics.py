@@ -8,7 +8,10 @@ from custom_components.ezviz_cloud.diagnostics import async_get_config_entry_dia
 
 
 async def test_redacts_credentials() -> None:
-    entry = MagicMock(data={"region": "eu", "app_key": "key", "app_secret": "secret"})
+    entry = MagicMock(
+        data={"region": "eu", "app_key": "key", "app_secret": "secret"},
+        options={"codes": {"BK2": "SECRET", "BK1": "SECRET"}},
+    )
     entry.runtime_data.api.domain = "https://ieuopen.ezvizlife.com"
     entry.runtime_data.expires_at = "2026-10-11T00:00:00+00:00"
     result = await async_get_config_entry_diagnostics(MagicMock(), entry)
@@ -17,4 +20,6 @@ async def test_redacts_credentials() -> None:
         "app_key": "**REDACTED**",
         "app_secret": "**REDACTED**",
     }
+    assert result["devices_with_code"] == ["BK1", "BK2"]
+    assert "SECRET" not in str(result)
     assert result["token_expires_at"] == "2026-10-11T00:00:00+00:00"

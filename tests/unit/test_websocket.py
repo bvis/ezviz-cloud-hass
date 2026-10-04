@@ -1,4 +1,4 @@
-"""ezviz_cloud/token websocket command."""
+"""ezviz_cloud/token and ezviz_cloud/devices websocket commands."""
 
 from __future__ import annotations
 
@@ -7,24 +7,30 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
 
-from custom_components.ezviz_cloud.api import AccessToken, EzvizCloudError
-from custom_components.ezviz_cloud.websocket import async_register_commands, ws_get_token
+from custom_components.ezviz_cloud.api import AccessToken, Camera, EzvizCloudError
+from custom_components.ezviz_cloud.websocket import (
+    async_register_commands,
+    ws_get_devices,
+    ws_get_token,
+)
 
 EXPIRY = datetime(2026, 10, 11, tzinfo=UTC)
 
 
-def _entry(entry_id: str, state: ConfigEntryState = ConfigEntryState.LOADED) -> MagicMock:
-    entry = MagicMock(entry_id=entry_id, state=state)
+def _entry(
+    entry_id: str, state: ConfigEntryState = ConfigEntryState.LOADED, codes: dict | None = None
+) -> MagicMock:
+    entry = MagicMock(entry_id=entry_id, state=state, options={"codes": codes or {}})
     entry.runtime_data.api.domain = "https://ieuopen.ezvizlife.com"
     entry.runtime_data.async_get_token = AsyncMock(return_value=AccessToken("at.x", EXPIRY))
     return entry
 
 
-async def _call(entries: list[MagicMock], msg: dict) -> MagicMock:
+async def _call(entries: list[MagicMock], msg: dict, handler=ws_get_token) -> MagicMock:  # type: ignore[no-untyped-def]
     hass = MagicMock()
     hass.config_entries.async_entries.return_value = entries
     connection = MagicMock()
-    ws_get_token(hass, connection, {"id": 1, "type": "ezviz_cloud/token", **msg})
+    handler(hass, connection, {"id": 1, **msg})
     await hass.async_create_background_task.call_args.args[0]
     return connection
 
@@ -64,4 +70,56 @@ def test_registers_command() -> None:
     hass = MagicMock()
     with patch("custom_components.ezviz_cloud.websocket.async_register_command") as register:
         async_register_commands(hass)
-    register.assert_called_once_with(hass, ws_get_token)
+    assert [c.args for c in register.call_args_list] == [
+        (hass, ws_get_token),
+        (hass, ws_get_devices),
+    ]
+
+
+async def test_token_includes_stored_code_from_the_account_that_has_it() -> None:
+    first, second = _entry("a"), _entry("b", codes={"BK1": "ABCDEF"})
+    conn = await _call([first, second], {"serial": "BK1"})
+    assert conn.send_result.call_args.args[1]["code"] == "ABCDEF"
+    first.runtime_data.async_get_token.assert_not_awaited()
+
+
+async def test_token_without_stored_code_has_no_code() -> None:
+    conn = await _call([_entry("a", codes={"OTHER": "X"})], {"serial": "BK1"})
+    assert "code" not in conn.send_result.call_args.args[1]
+
+
+async def test_devices_lists_cameras_of_every_account() -> None:
+    entry = _entry("a", codes={"BK1": "ABCDEF"})
+    entry.runtime_data.api.async_get_cameras = AsyncMock(
+        return_value=[Camera("BK1", 1, "Door", True), Camera("BK2", 1, "Yard", False)]
+    )
+    conn = await _call([entry, _entry("b", ConfigEntryState.SETUP_ERROR)], {}, ws_get_devices)
+    entry.runtime_data.api.async_get_cameras.assert_awaited_once_with("at.x")
+    conn.send_result.assert_called_once_with(
+        1,
+        [
+            {
+                "entry_id": "a",
+                "serial": "BK1",
+                "channel": 1,
+                "name": "Door",
+                "encrypted": True,
+                "has_code": True,
+            },
+            {
+                "entry_id": "a",
+                "serial": "BK2",
+                "channel": 1,
+                "name": "Yard",
+                "encrypted": False,
+                "has_code": False,
+            },
+        ],
+    )
+
+
+async def test_devices_reports_api_failure() -> None:
+    entry = _entry("a")
+    entry.runtime_data.api.async_get_cameras = AsyncMock(side_effect=EzvizCloudError("down"))
+    conn = await _call([entry], {}, ws_get_devices)
+    assert conn.send_error.call_args.args[:2] == (1, "api_error")

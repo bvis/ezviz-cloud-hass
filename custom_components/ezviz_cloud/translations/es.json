@@ -34,5 +34,22 @@
         "cn": "China"
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Códigos de verificación",
+        "description": "Elige una cámara y escribe el código de verificación de su etiqueta (seis letras mayúsculas). La tarjeta lo usa y así el código no tiene que estar en el dashboard. Las cámaras marcadas con ✓ ya tienen uno; deja el código vacío para quitarlo.",
+        "data": {
+          "serial": "Cámara",
+          "code": "Código de verificación"
+        }
+      }
+    },
+    "abort": {
+      "not_loaded": "La integración no está cargada. Arregla primero la cuenta y vuelve a intentarlo.",
+      "cannot_connect": "No se ha podido obtener la lista de cámaras de EZVIZ Open Platform.",
+      "no_cameras": "Esta cuenta de EZVIZ no tiene cámaras."
+    }
   }
 }

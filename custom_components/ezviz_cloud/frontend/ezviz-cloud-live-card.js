@@ -1,8 +1,9 @@
 // EZVIZ Cloud live card. Served and registered by the ezviz_cloud integration.
 //
 //   type: custom:ezviz-cloud-live-card
-//   serial: ABC123456        # device serial
-//   code: ABCDEF             # verification code on the device label
+//   serial: ABC123456        # device serial (the editor lists the account's cameras)
+//   code: ABCDEF             # optional: verification code; better stored in the
+//                            # integration options (Configure), out of the dashboard
 //   channel: 1               # optional
 //   title: Front door        # optional
 //   max_seconds: 60          # optional, stops the stream to save battery
@@ -15,33 +16,58 @@
 const EZUIKIT = "https://cdn.jsdelivr.net/npm/ezuikit-js@9.0.23/ezuikit.js";
 
 class EzvizCloudLiveCard extends HTMLElement {
-  static getConfigForm() {
+  // Async: the frontend awaits it, so the serial field can list the account's
+  // cameras. Falls back to a text field when the list can't be fetched.
+  static async getConfigForm() {
+    let serial = { text: {} };
+    try {
+      const devices = await document
+        .querySelector("home-assistant")
+        .hass.callWS({ type: "ezviz_cloud/devices" });
+      if (devices.length) {
+        serial = {
+          select: {
+            mode: "dropdown",
+            custom_value: true,
+            options: devices.map((d) => ({
+              value: d.serial,
+              label: `${d.name} (${d.serial})${d.encrypted && !d.has_code ? " · no code stored" : ""}`,
+            })),
+          },
+        };
+      }
+    } catch (err) {
+      // Keep the text field.
+    }
     return {
       schema: [
-        { name: "serial", required: true, selector: { text: {} } },
-        { name: "code", required: true, selector: { text: { type: "password" } } },
+        { name: "serial", required: true, selector: serial },
+        { name: "code", selector: { text: { type: "password" } } },
         { name: "channel", selector: { number: { min: 1, max: 64, mode: "box" } } },
         { name: "title", selector: { text: {} } },
         { name: "max_seconds", selector: { number: { min: 10, max: 600, unit_of_measurement: "s", mode: "box" } } },
       ],
       computeLabel: (s) =>
         ({
-          serial: "Device serial",
+          serial: "Camera",
           code: "Verification code",
           channel: "Channel",
           title: "Title",
           max_seconds: "Stop after",
         })[s.name],
+      computeHelper: (s) =>
+        s.name === "code"
+          ? "Leave empty to use the code stored in the integration (Settings → Devices & services → EZVIZ Cloud → Configure)."
+          : undefined,
     };
   }
 
   static getStubConfig() {
-    return { serial: "", code: "" };
+    return { serial: "" };
   }
 
   setConfig(config) {
     if (!config.serial) throw new Error("serial is required");
-    if (!config.code) throw new Error("code is required");
     this._config = { channel: 1, max_seconds: 60, ...config };
     this._render();
   }
@@ -122,16 +148,18 @@ class EzvizCloudLiveCard extends HTMLElement {
     this._showProgress(2, "Connecting…");
     let auth;
     try {
-      auth = await this._hass.callWS({ type: "ezviz_cloud/token" });
+      auth = await this._hass.callWS({ type: "ezviz_cloud/token", serial: this._config.serial });
     } catch (err) {
       this._fail(`EZVIZ Cloud: ${err.message || err.code || err}`);
       return;
     }
     this._showProgress(10, "Loading player…");
-    const { serial, code, channel, max_seconds } = this._config;
+    const { serial, channel, max_seconds } = this._config;
+    // Cameras with encryption off play without a code.
+    const code = this._config.code || auth.code;
     const opts = JSON.stringify({
       accessToken: auth.access_token,
-      url: `ezopen://${code}@open.ezviz.com/${serial}/${channel}.live`,
+      url: `ezopen://${code ? `${code}@` : ""}open.ezviz.com/${serial}/${channel}.live`,
       env: { domain: auth.domain },
       language: "en",
     }).replace(/</g, "\\u003c");

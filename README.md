@@ -78,30 +78,35 @@ Your cameras show up under **My resources → Equipment list**. If a camera isn'
 
 Settings → Devices & services → Add integration → **EZVIZ Cloud**. Choose your region and paste the AppKey and AppSecret. The credentials are checked before the entry is created.
 
-### 3. Add the card
+### 3. Store the verification codes
 
-Edit a dashboard, add a card and search for **EZVIZ Cloud live**, or use YAML:
+On the integration, press **Configure**, pick a camera from the list and type its verification code. Repeat for each camera with encryption on. Cameras that already have a code are marked ✓; saving an empty code removes it.
+
+The code is kept in Home Assistant's integration settings, not in the dashboard. It still reaches the browser when a stream starts, because the video is decrypted there.
+
+### 4. Add the card
+
+Edit a dashboard, add a card and search for **EZVIZ Cloud live**. The editor lists the cameras of your EZVIZ account. Or use YAML:
 
 ```yaml
 type: custom:ezviz-cloud-live-card
 title: Front door
 serial: BD1234567        # device serial, from the label or the EZVIZ app
-code: ABCDEF             # verification code from the device label
 channel: 1               # optional, default 1
 max_seconds: 60          # optional, default 60
 ```
 
-> The verification code is stored in the dashboard configuration, which every Home Assistant user who can open that dashboard can read.
+`code: ABCDEF` still works on the card and wins over the stored one, but anyone who can open the dashboard can read it there.
 
 ## How it works
 
-1. When you press *Watch live*, the card asks the integration for an Open Platform access token over Home Assistant's authenticated websocket.
+1. When you press *Watch live*, the card asks the integration for an Open Platform access token and the camera's stored verification code over Home Assistant's authenticated websocket.
 2. The card loads EZVIZ's web player ([ezuikit-js](https://www.npmjs.com/package/ezuikit-js), ISC license) and opens an `ezopen://` live address with your verification code.
 3. The EZVIZ cloud wakes the camera and relays the stream to your browser, where it is decrypted and decoded (H.265 and H.264).
 
 Video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser showing the card. That's why there is no `camera` entity. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
 
-**Requests to EZVIZ:** one token request at setup, then one whenever a stream starts with less than a day left on the token, so at most about one a week. The live stream itself is opened by the player in the browser.
+**Requests to EZVIZ:** one token request at setup, then one whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the integration's Configure dialog lists the cameras (one request per 50 cameras). The live stream itself is opened by the player in the browser.
 
 ## Troubleshooting
 
@@ -109,13 +114,8 @@ Video never goes through Home Assistant: it flows from the EZVIZ cloud straight 
 |---|---|
 | "EZVIZ rejected the AppKey/AppSecret" during setup | Check both values and the **region**. An AppKey from the European console fails against any other region with "AppKey doesn't exist". |
 | The card says `EZVIZ Cloud: No loaded EZVIZ Cloud account` | The integration isn't set up or failed to load. Check Settings → Devices & services. |
-| The card stays black or keeps loading | Make sure the verification code is right (wrong codes fail decryption) and that the camera is online in the EZVIZ app. The browser console lines starting with `[ezuikit` show where it stopped. |
+| The card shows an error after "Waking camera…" | The camera didn't answer the cloud in time: check it's online in the EZVIZ app and try again. A wrong or missing verification code also fails here; check it under Configure. |
 | The card isn't in the card picker | Hard-refresh the browser (the card is loaded once per page load). |
-
-## Roadmap
-
-- Pick the camera from the account's device list in the card editor, instead of typing the serial.
-- Keep verification codes in the integration so they don't live in the dashboard configuration.
 
 ## Support
 

@@ -9,16 +9,19 @@ import aiohttp
 import pytest
 
 from custom_components.ezviz_cloud.api import (
+    Camera,
     EzvizCloudApi,
     EzvizCloudAuthError,
     EzvizCloudError,
 )
 
 
-def _api(body: dict | None = None, exc: Exception | None = None) -> tuple[EzvizCloudApi, MagicMock]:
+def _api(
+    body: dict | None = None, exc: Exception | None = None, bodies: list[dict] | None = None
+) -> tuple[EzvizCloudApi, MagicMock]:
     resp = MagicMock()
     resp.raise_for_status = MagicMock()
-    resp.json = AsyncMock(return_value=body)
+    resp.json = AsyncMock(side_effect=bodies) if bodies else AsyncMock(return_value=body)
     ctx = MagicMock()
     ctx.__aenter__ = AsyncMock(return_value=resp)
     ctx.__aexit__ = AsyncMock(return_value=False)
@@ -65,3 +68,32 @@ async def test_network_failures_raise_generic_error(exc: Exception) -> None:
     with pytest.raises(EzvizCloudError) as err:
         await api.async_get_token()
     assert not isinstance(err.value, EzvizCloudAuthError)
+
+
+def _cam(i: int) -> dict:
+    return {"deviceSerial": f"BK{i}", "channelNo": 1, "channelName": f"Cam {i}", "isEncrypt": 1}
+
+
+async def test_lists_cameras_across_pages() -> None:
+    api, session = _api(
+        bodies=[
+            {"code": "200", "data": [_cam(i) for i in range(50)], "page": {"total": 51}},
+            {
+                "code": "200",
+                "data": [{"deviceSerial": "BKX", "isEncrypt": 0}],
+                "page": {"total": 51},
+            },
+        ]
+    )
+    cameras = await api.async_get_cameras("at.x")
+    assert len(cameras) == 51
+    assert cameras[0] == Camera("BK0", 1, "Cam 0", True)
+    assert cameras[-1] == Camera("BKX", 1, "BKX", False)
+    assert [c.kwargs["data"]["pageStart"] for c in session.post.call_args_list] == [0, 1]
+    assert session.post.call_args.args[0] == "https://ieuopen.ezvizlife.com/api/lapp/camera/list"
+
+
+async def test_camera_list_error_code_raises() -> None:
+    api, _ = _api({"code": "10002", "msg": "accessToken expired"})
+    with pytest.raises(EzvizCloudError):
+        await api.async_get_cameras("at.x")

@@ -10,6 +10,10 @@ DOMAIN: Final = "ezviz_cloud"
 CONF_APP_KEY: Final = "app_key"
 CONF_APP_SECRET: Final = "app_secret"
 CONF_REGION: Final = "region"
+# Options: verification codes by device serial, so they stay out of dashboards.
+CONF_CODES: Final = "codes"
+CONF_SERIAL: Final = "serial"
+CONF_CODE: Final = "code"
 
 # EZVIZ Open Platform API domain per account region. An appKey only works
 # against the region its developer account was created in.

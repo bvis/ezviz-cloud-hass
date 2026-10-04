@@ -5,9 +5,17 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigEntryState,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
+from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -16,8 +24,17 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .api import EzvizCloudApi, EzvizCloudAuthError, EzvizCloudError
-from .const import CONF_APP_KEY, CONF_APP_SECRET, CONF_REGION, DOMAIN, REGIONS
+from .api import Camera, EzvizCloudApi, EzvizCloudAuthError, EzvizCloudError
+from .const import (
+    CONF_APP_KEY,
+    CONF_APP_SECRET,
+    CONF_CODE,
+    CONF_CODES,
+    CONF_REGION,
+    CONF_SERIAL,
+    DOMAIN,
+    REGIONS,
+)
 
 DATA_SCHEMA = vol.Schema(
     {
@@ -40,6 +57,12 @@ class EzvizCloudConfigFlow(ConfigFlow, domain=DOMAIN):
     """Ask for the Open Platform credentials and check them against the platform."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(_entry: ConfigEntry) -> EzvizCloudOptionsFlow:
+        """Verification codes are kept in the entry options."""
+        return EzvizCloudOptionsFlow()
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the only step."""
@@ -73,4 +96,54 @@ class EzvizCloudConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(DATA_SCHEMA, user_input),
             errors=errors,
+        )
+
+
+class EzvizCloudOptionsFlow(OptionsFlow):
+    """Store the verification code of one camera at a time."""
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Pick a camera of the account and type its code; an empty code removes it."""
+        codes: dict[str, str] = dict(self.config_entry.options.get(CONF_CODES, {}))
+        if user_input is not None:
+            code = user_input.get(CONF_CODE, "").strip().upper()
+            if code:
+                codes[user_input[CONF_SERIAL]] = code
+            else:
+                codes.pop(user_input[CONF_SERIAL], None)
+            return self.async_create_entry(data={**self.config_entry.options, CONF_CODES: codes})
+
+        if self.config_entry.state is not ConfigEntryState.LOADED:
+            return self.async_abort(reason="not_loaded")
+        manager = self.config_entry.runtime_data
+        try:
+            token = await manager.async_get_token()
+            cameras = await manager.api.async_get_cameras(token.token)
+        except EzvizCloudError:
+            return self.async_abort(reason="cannot_connect")
+        if not cameras:
+            return self.async_abort(reason="no_cameras")
+        # One entry per device: a multi-channel device shares a single code.
+        devices: dict[str, Camera] = {}
+        for camera in cameras:
+            devices.setdefault(camera.serial, camera)
+        options = [
+            SelectOptionDict(
+                value=c.serial,
+                label=f"{c.name} ({c.serial})" + (" ✓" if c.serial in codes else ""),
+            )
+            for c in devices.values()
+        ]
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_SERIAL, default=options[0]["value"]): SelectSelector(
+                        SelectSelectorConfig(options=options, mode=SelectSelectorMode.DROPDOWN)
+                    ),
+                    vol.Optional(CONF_CODE): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
+                }
+            ),
         )
