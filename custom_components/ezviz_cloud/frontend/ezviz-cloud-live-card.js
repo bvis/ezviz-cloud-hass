@@ -442,6 +442,11 @@ class EzvizCloudLiveCard extends HTMLElement {
     } catch (err) {
       this._session = null;
     }
+    // Left the view while asking: release the camera now instead of after the timeout.
+    if (!this.isConnected) {
+      this._finishRecording();
+      return;
+    }
     this._showProgress(10, "loading_player");
     const { serial, channel, max_seconds } = this._config;
     // Cameras with encryption off play without a code.

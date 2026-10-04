@@ -54,6 +54,9 @@ MAX_SESSION_BYTES: Final = 60 * 1024 * 1024
 MAX_CHUNK_BYTES: Final = 8 * 1024 * 1024
 # The card sends a chunk every 2 s; this long without one means the tab is gone.
 SESSION_IDLE_TIMEOUT: Final = 30
+# Before the first chunk the camera may still be waking; the card itself waits
+# up to its max_seconds (60 by default) for video.
+FIRST_CHUNK_TIMEOUT: Final = 120
 
 
 def signal_recorded(serial: str) -> str:

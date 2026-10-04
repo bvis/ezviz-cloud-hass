@@ -264,3 +264,40 @@ def test_upload_view_needs_auth() -> None:
     view = RecordingUploadView()
     assert view.requires_auth is True
     assert view.url == "/api/ezviz_cloud/recording/{session_id}"
+
+
+async def test_slow_wake_keeps_session_until_first_chunk(tmp_path: Path) -> None:
+    sessions, clock, _ = _sessions(tmp_path)
+    sid = sessions.start("BK1")
+    clock.now += 35  # camera still waking: no chunk yet
+    with patch("custom_components.ezviz_cloud.recording.async_dispatcher_send"):
+        await sessions.expire()
+        assert sessions.start("BK1") is None
+        await sessions.append(sid, b"ab", "video/mp4")  # type: ignore[arg-type]
+        clock.now += 121
+        await sessions.expire()
+    assert sessions.start("BK1")
+
+
+async def test_session_without_chunks_expires_eventually(tmp_path: Path) -> None:
+    sessions, clock, _ = _sessions(tmp_path)
+    sessions.start("BK1")
+    clock.now += 121
+    with patch("custom_components.ezviz_cloud.recording.async_dispatcher_send"):
+        await sessions.expire()
+    assert sessions.start("BK1")
+
+
+def test_finalize_never_replaces_a_finished_video(tmp_path: Path) -> None:
+    store = RecordingStore(tmp_path)
+    part = store.video_part("BK1", "2026-10-04_22-00-00", "mp4")
+    store.append(part, b"good")
+    final = store.finalize(part)
+    store.append(part, b"stray fragment")  # a late write after the session closed
+    assert store.finalize(part) is None
+    assert final is not None
+    assert final.read_bytes() == b"good"
+    assert not part.exists()
+    part.write_bytes(b"stray")
+    assert store.recover() == 0
+    assert final.read_bytes() == b"good"

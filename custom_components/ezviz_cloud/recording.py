@@ -20,6 +20,7 @@ from homeassistant.util import dt as dt_util
 from .const import (
     DATA_RECORDER,
     DOMAIN,
+    FIRST_CHUNK_TIMEOUT,
     MAX_CHUNK_BYTES,
     MAX_SESSION_BYTES,
     SESSION_IDLE_TIMEOUT,
@@ -80,10 +81,12 @@ class RecordingStore:
         """Turn a finished .part into the final video; drop it if nothing arrived."""
         if not part.exists():
             return None
-        if part.stat().st_size == 0:
+        final = part.with_suffix("")
+        # An empty part, or a late write after the video was already closed:
+        # never let it replace a finished recording.
+        if part.stat().st_size == 0 or final.exists():
             part.unlink()
             return None
-        final = part.with_suffix("")
         part.rename(final)
         return final
 
@@ -239,7 +242,8 @@ class RecordingSessions:
         """Close sessions whose card stopped sending, e.g. a closed tab."""
         now = self._clock()
         for session_id, session in list(self._sessions.items()):
-            if now - session.last_chunk > SESSION_IDLE_TIMEOUT:
+            timeout = SESSION_IDLE_TIMEOUT if session.part else FIRST_CHUNK_TIMEOUT
+            if now - session.last_chunk > timeout:
                 await self.stop(session_id)
 
 
