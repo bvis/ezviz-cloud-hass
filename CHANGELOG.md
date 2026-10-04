@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-10-04
+
+### Fixed
+- **The card no longer overlaps the card below it in sections views.** It asked for a fixed height of 5 rows, shorter than its title plus the 16:9 video, so the next card covered the bottom of the stream. It now takes the height it needs, and the video follows the card's rounded corners. **Requests to EZVIZ:** none added.
+
 ## [0.1.0] - 2026-10-04
 
 First release: live view of EZVIZ cameras through the EZVIZ Open Platform, including battery cameras with no RTSP and cameras with video encryption on.

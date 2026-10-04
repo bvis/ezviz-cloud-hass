@@ -55,7 +55,8 @@ class EzvizCloudLiveCard extends HTMLElement {
   }
 
   getGridOptions() {
-    return { columns: 12, rows: 5, min_rows: 4 };
+    // No fixed rows: the card's height follows the 16:9 video plus its title.
+    return { columns: 12, min_columns: 6 };
   }
 
   disconnectedCallback() {
@@ -65,6 +66,7 @@ class EzvizCloudLiveCard extends HTMLElement {
   _render() {
     if (!this._card) {
       this._card = document.createElement("ha-card");
+      this._card.style.overflow = "hidden";
       this.appendChild(this._card);
     }
     this._card.header = this._config.title || "";
