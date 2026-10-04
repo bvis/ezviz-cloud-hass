@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlparse
 
 import aiohttp
 
@@ -12,6 +13,8 @@ import aiohttp
 # as opposed to a transient failure worth retrying.
 _AUTH_ERROR_CODES = {"10005", "10017", "10030"}
 _TIMEOUT = aiohttp.ClientTimeout(total=15)
+# Pictures from device/capture are served from EZVIZ's own storage hosts.
+_PICTURE_HOSTS = (".ezvizlife.com", ".ys7.com")
 
 
 class EzvizCloudError(Exception):
@@ -101,3 +104,27 @@ class EzvizCloudApi:
             ]
             if len(page) < 50 or len(cameras) >= int((body.get("page") or {}).get("total") or 0):
                 return cameras
+
+    async def async_capture(self, access_token: str, serial: str, channel: int = 1) -> str:
+        """Ask the camera for a picture and return its URL. Fails if the camera is asleep."""
+        body = await self._post(
+            "/api/lapp/device/capture",
+            {"accessToken": access_token, "deviceSerial": serial, "channelNo": channel},
+        )
+        url = (body.get("data") or {}).get("picUrl")
+        if str(body.get("code")) != "200" or not url:
+            raise EzvizCloudError(f"Capture failed: {body.get('code')} {body.get('msg')}")
+        return str(url)
+
+    async def async_download(self, url: str) -> bytes:
+        """Download a picture, only from EZVIZ hosts."""
+        parsed = urlparse(url)
+        host = parsed.hostname or ""
+        if parsed.scheme not in ("https", "http") or not host.endswith(_PICTURE_HOSTS):
+            raise EzvizCloudError(f"Unexpected picture host: {host or url}")
+        try:
+            async with self._session.get(url, timeout=_TIMEOUT) as resp:
+                resp.raise_for_status()
+                return await resp.read()
+        except (aiohttp.ClientError, TimeoutError) as err:
+            raise EzvizCloudError(f"Cannot download the picture: {err}") from err

@@ -97,3 +97,57 @@ async def test_camera_list_error_code_raises() -> None:
     api, _ = _api({"code": "10002", "msg": "accessToken expired"})
     with pytest.raises(EzvizCloudError):
         await api.async_get_cameras("at.x")
+
+
+async def test_capture_returns_picture_url() -> None:
+    api, session = _api(
+        {"code": "200", "data": {"picUrl": "https://pmseu1.ezvizlife.com:8444/x?c=1"}}
+    )
+    assert await api.async_capture("at.x", "BK1") == "https://pmseu1.ezvizlife.com:8444/x?c=1"
+    assert session.post.call_args.args[0] == "https://ieuopen.ezvizlife.com/api/lapp/device/capture"
+    assert session.post.call_args.kwargs["data"] == {
+        "accessToken": "at.x",
+        "deviceSerial": "BK1",
+        "channelNo": 1,
+    }
+
+
+async def test_capture_device_timeout_raises() -> None:
+    api, _ = _api({"code": "20008", "msg": "Device response timeout"})
+    with pytest.raises(EzvizCloudError):
+        await api.async_capture("at.x", "BK1")
+
+
+def _get_api(body: bytes = b"\xff\xd8jpeg", exc: Exception | None = None) -> EzvizCloudApi:
+    resp = MagicMock()
+    resp.raise_for_status = MagicMock()
+    resp.read = AsyncMock(return_value=body)
+    ctx = MagicMock()
+    ctx.__aenter__ = AsyncMock(return_value=resp)
+    ctx.__aexit__ = AsyncMock(return_value=False)
+    session = MagicMock()
+    session.get = MagicMock(side_effect=exc) if exc else MagicMock(return_value=ctx)
+    return EzvizCloudApi(session, "https://ieuopen.ezvizlife.com", "key", "secret")
+
+
+async def test_download_from_ezviz_host() -> None:
+    url = "https://pmseu1.ezvizlife.com:8444/p?c=1"
+    assert await _get_api().async_download(url) == b"\xff\xd8jpeg"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil.example.com/p.jpg",
+        "https://ezvizlife.com.evil.example/p.jpg",
+        "file:///etc/passwd",
+    ],
+)
+async def test_download_rejects_other_hosts(url: str) -> None:
+    with pytest.raises(EzvizCloudError):
+        await _get_api().async_download(url)
+
+
+async def test_download_network_failure() -> None:
+    with pytest.raises(EzvizCloudError):
+        await _get_api(exc=aiohttp.ClientError("boom")).async_download("https://a.ys7.com/p")
