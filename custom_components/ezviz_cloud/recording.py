@@ -223,6 +223,11 @@ class RecordingSessions:
         session.size += len(data)
         session.last_chunk = self._clock()
 
+    async def add_photo(self, session_id: str, data: bytes) -> None:
+        """The card's snapshot of the first recorded frame."""
+        serial, stem = self.target(session_id)
+        await self.save_photo(serial, stem, data)
+
     async def save_photo(self, serial: str, stem: str, data: bytes) -> None:
         """Store the photo of a recording and tell the entities."""
         path = self.store.photo_path(serial, stem)
@@ -248,7 +253,7 @@ class RecordingSessions:
 
 
 class RecordingUploadView(HomeAssistantView):
-    """Receives the card's video chunks for an open session."""
+    """Receives the card's video chunks, and its photo, for an open session."""
 
     url = "/api/ezviz_cloud/recording/{session_id}"
     name = "api:ezviz_cloud:recording"
@@ -261,7 +266,10 @@ class RecordingUploadView(HomeAssistantView):
         sessions = request.app[KEY_HASS].data[DATA_RECORDER]
         data = await request.read()
         try:
-            await sessions.append(session_id, data, request.content_type)
+            if request.content_type == "image/jpeg":
+                await sessions.add_photo(session_id, data)
+            else:
+                await sessions.append(session_id, data, request.content_type)
         except SessionNotFoundError:
             return self.json_message("Unknown session", 404)
         except SessionTooLargeError:

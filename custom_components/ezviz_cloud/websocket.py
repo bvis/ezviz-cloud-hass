@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
 import voluptuous as vol
@@ -14,9 +13,6 @@ from homeassistant.core import HomeAssistant, callback
 
 from .api import EzvizCloudError
 from .const import CONF_CODES, DATA_RECORDER, DOMAIN, MODE_RECORD
-from .recording import SessionNotFoundError
-
-_LOGGER = logging.getLogger(__name__)
 
 
 @callback
@@ -25,7 +21,6 @@ def async_register_commands(hass: HomeAssistant) -> None:
     async_register_command(hass, ws_get_token)
     async_register_command(hass, ws_get_devices)
     async_register_command(hass, ws_recording_start)
-    async_register_command(hass, ws_recording_first_frame)
     async_register_command(hass, ws_recording_stop)
 
 
@@ -137,35 +132,6 @@ def ws_recording_start(
     ):
         session_id = hass.data[DATA_RECORDER].start(msg["serial"])
     connection.send_result(msg["id"], {"session_id": session_id})
-
-
-@websocket_command(
-    {vol.Required("type"): f"{DOMAIN}/recording/first_frame", vol.Required("session_id"): str}
-)
-@async_response
-async def ws_recording_first_frame(
-    hass: HomeAssistant, connection: ActiveConnection, msg: dict[str, Any]
-) -> None:
-    """The camera is awake: take the recording's photo. Failures only cost the photo."""
-    sessions = hass.data[DATA_RECORDER]
-    try:
-        serial, stem = sessions.target(msg["session_id"])
-    except SessionNotFoundError:
-        connection.send_error(msg["id"], "not_found", "No open recording with that id")
-        return
-    connection.send_result(msg["id"])
-    entry = _entry_for_serial(hass, serial)
-    if entry is None:
-        return
-    manager = entry.runtime_data.manager
-    try:
-        token = await manager.async_get_token()
-        url = await manager.api.async_capture(token.token, serial)
-        photo = await manager.api.async_download(url)
-    except EzvizCloudError as err:
-        _LOGGER.warning("No photo for the recording of %s: %s", serial, err)
-        return
-    await sessions.save_photo(serial, stem, photo)
 
 
 @websocket_command(

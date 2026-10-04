@@ -511,11 +511,23 @@ const startRec=()=>{
   const c=document.querySelector('#v canvas');
   const type=['video/mp4;codecs=avc1','video/webm;codecs=vp9','video/webm'].find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t));
   if(!c||!type)return send({recError:true});
-  rec=new MediaRecorder(c.captureStream(15),{mimeType:type,videoBitsPerSecond:1500000});
+  const stream=c.captureStream(15);
+  rec=new MediaRecorder(stream,{mimeType:type,videoBitsPerSecond:1500000});
   rec.ondataavailable=(e)=>{if(e.data.size)send({chunk:e.data,type});};
   rec.onstop=()=>send({recStopped:true});
   rec.start(2000);
   send({recording:true});
+  // The recording's photo is a frame of the same stream: a WebGL canvas can't be
+  // read back reliably, a video element playing its stream can.
+  const v=document.createElement('video');
+  v.muted=true;v.srcObject=stream;
+  v.onloadeddata=()=>{
+    const k=document.createElement('canvas');
+    k.width=v.videoWidth;k.height=v.videoHeight;
+    k.getContext('2d').drawImage(v,0,0);
+    k.toBlob((b)=>{if(b)send({photo:b});v.srcObject=null;},'image/jpeg',0.9);
+  };
+  v.play().catch(()=>{});
 };
 // Record / Stop recording pressed on the card during the live view.
 addEventListener('message',(e)=>{
@@ -533,12 +545,10 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
       if (!m) return;
       if (m.recording) {
         this._setBadge(t(this._lang, "recording"));
-        this._hass
-          .callWS({ type: "ezviz_cloud/recording/first_frame", session_id: this._session })
-          .catch(() => {});
         return;
       }
       if (m.chunk) return this._upload(m.chunk, m.type);
+      if (m.photo) return this._upload(m.photo, "image/jpeg");
       // The recorder flushed its last chunk after Stop recording: close the file.
       if (m.recStopped) {
         this._finishRecording();

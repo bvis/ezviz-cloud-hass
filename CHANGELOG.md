@@ -8,9 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Recordings.** Each camera is now a device with a *Mode* select (*View* / *Record*), a *Last photo* camera and a *Last recording* sensor. In *Record* mode the card records the live view in the browser (720p) and uploads it to `media/ezviz_cloud/<serial>/`, and Home Assistant saves a full-resolution photo when the video starts. Recordings are deleted after a retention set in Configure (10 days and 100 per camera by default). **Requests to EZVIZ:** one camera list request each time the integration starts; in *Record* mode, one picture request per recording; none in *View* mode.
+- **Recordings.** Each camera is now a device with a *Mode* select (*View* / *Record*), a *Last photo* camera and a *Last recording* sensor. In *Record* mode the card records the live view in the browser (720p) and uploads it to `media/ezviz_cloud/<serial>/`, together with a photo of its first frame. Recordings are deleted after a retention set in Configure (10 days and 100 per camera by default). **Requests to EZVIZ:** one camera list request each time the integration starts; recordings add none, since the video and the photo come from the stream the browser is already playing.
 
-- **Stop and Record buttons on the card.** *Stop* ends the live view at any time; *● Record* / *■ Stop recording* start or end a recording during the live view, whatever the camera's mode. **Requests to EZVIZ:** one picture request per recording started this way.
+- **Stop and Record buttons on the card.** *Stop* ends the live view at any time; *● Record* / *■ Stop recording* start or end a recording during the live view, whatever the camera's mode. **Requests to EZVIZ:** none added.
 
 ### Changed
 - **Configure is a menu** with *Verification codes* and *Recordings*, so changing the retention never touches the stored codes.

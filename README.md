@@ -20,7 +20,7 @@ The built-in EZVIZ integration plays video over local RTSP, so battery devices (
 - **Works with video encryption on.** The verification code from the device label decrypts the stream in the browser.
 - **Saves battery**: the stream stops after 60 seconds (configurable), when you press *Stop*, or as soon as you leave the view.
 - **In your language**: English, Spanish, Catalan, French, German, Italian, Portuguese (Portugal and Brazil) and Dutch, following each Home Assistant user's language.
-- **Recordings** (optional): set a camera's *Mode* to *Record* and every live view opened from the card is saved to Home Assistant's media folder, as a 720p video plus a full-resolution photo, and deleted after the retention you choose. Browse them in *Media → My media → ezviz_cloud*.
+- **Recordings** (optional): set a camera's *Mode* to *Record* and every live view opened from the card is saved to Home Assistant's media folder, as a 720p video plus a photo, and deleted after the retention you choose. Browse them in *Media → My media → ezviz_cloud*.
 - **Access token handled for you.** The token lives 7 days; the integration renews it when it's needed and keeps it out of entity states and the recorder.
 
 ## Supported devices
@@ -102,7 +102,7 @@ max_seconds: 60          # optional, default 60
 
 ### 5. Recordings (optional)
 
-Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds; Home Assistant also asks EZVIZ for a full-resolution photo once the video starts. Files go to `media/ezviz_cloud/<serial>/`, named after the start time.
+Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds, together with a photo of its first frame. Files go to `media/ezviz_cloud/<serial>/`, named after the start time.
 
 - Only live views opened from the card are recorded. Waking the camera with its button or from the EZVIZ app isn't.
 - During the live view, *● Record* / *■ Stop recording* start or end a recording on the spot, whatever the mode: switch to recording when you see something, or stop it without closing the stream.
@@ -111,7 +111,7 @@ Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo
 - **Configure** → **Recordings** sets how many days to keep them (default 10) and the maximum per camera (default 100, 0 = no limit). Older ones are deleted at startup, once a day and after each new recording.
 - The mode is a normal entity, so automations can switch it, for example to record only when nobody is home.
 
-**Requests to EZVIZ:** one picture request per recording. None in *View* mode.
+**Requests to EZVIZ:** none added: the video and the photo come from the stream the browser is already playing.
 
 ## How it works
 
@@ -121,7 +121,7 @@ Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo
 
 Video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser showing the card. That's why the `camera` entity only shows the photo of the last recording. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
 
-**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the integration's Configure dialog lists the cameras (one request per 50 cameras). In *Record* mode, one picture request per recording. The live stream itself is opened by the player in the browser.
+**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the integration's Configure dialog lists the cameras (one request per 50 cameras). The live stream itself is opened by the player in the browser.
 
 ## Troubleshooting
 

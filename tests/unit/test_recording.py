@@ -301,3 +301,25 @@ def test_finalize_never_replaces_a_finished_video(tmp_path: Path) -> None:
     part.write_bytes(b"stray")
     assert store.recover() == 0
     assert final.read_bytes() == b"good"
+
+
+async def test_add_photo_saves_jpg_and_signals(tmp_path: Path) -> None:
+    sessions, _, hass = _sessions(tmp_path)
+    with patch("custom_components.ezviz_cloud.recording.dt_util.now", return_value=NOW):
+        sid = sessions.start("BK1")
+    with patch("custom_components.ezviz_cloud.recording.async_dispatcher_send") as send:
+        await sessions.add_photo(sid, b"\xff\xd8frame")  # type: ignore[arg-type]
+    send.assert_called_once_with(hass, "ezviz_cloud_recorded_BK1")
+    assert (tmp_path / "ezviz_cloud/BK1/2026-10-04_22-00-00.jpg").read_bytes() == b"\xff\xd8frame"
+    with pytest.raises(SessionNotFoundError):
+        await sessions.add_photo("nope", b"x")
+
+
+async def test_upload_view_routes_photos() -> None:
+    sessions = MagicMock()
+    sessions.append = AsyncMock()
+    sessions.add_photo = AsyncMock()
+    resp = await RecordingUploadView().post(_request(sessions, b"jpg", "image/jpeg"), "sid")
+    assert resp.status == 200
+    sessions.add_photo.assert_awaited_once_with("sid", b"jpg")
+    sessions.append.assert_not_awaited()
