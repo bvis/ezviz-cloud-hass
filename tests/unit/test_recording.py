@@ -5,11 +5,18 @@ from __future__ import annotations
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from homeassistant.util import dt as dt_util
 
-from custom_components.ezviz_cloud.recording import RecordingStore
+from custom_components.ezviz_cloud.recording import (
+    RecordingSessions,
+    RecordingStore,
+    SessionNotFoundError,
+    SessionTooLargeError,
+    UnsupportedTypeError,
+)
 
 NOW = datetime(2026, 10, 4, 22, 0, 0, tzinfo=dt_util.get_default_time_zone())
 
@@ -115,3 +122,92 @@ def test_uri(tmp_path: Path) -> None:
         store.uri(path)
         == "media-source://media_source/local/ezviz_cloud/BK1/2026-10-04_22-00-00.jpg"
     )
+
+
+class _Clock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _sessions(tmp_path: Path) -> tuple[RecordingSessions, _Clock, MagicMock]:
+    hass = MagicMock()
+
+    async def run(fn, *args):  # type: ignore[no-untyped-def]
+        return fn(*args)
+
+    hass.async_add_executor_job = run
+    clock = _Clock()
+    return RecordingSessions(hass, RecordingStore(tmp_path), clock), clock, hass
+
+
+async def test_session_records_video_and_signals(tmp_path: Path) -> None:
+    sessions, _, hass = _sessions(tmp_path)
+    with patch("custom_components.ezviz_cloud.recording.dt_util.now", return_value=NOW):
+        sid = sessions.start("BK1")
+    assert sid
+    assert sessions.target(sid) == ("BK1", "2026-10-04_22-00-00")
+    await sessions.append(sid, b"ab", "video/mp4;codecs=avc1")
+    await sessions.append(sid, b"cd", "video/mp4")
+    with patch("custom_components.ezviz_cloud.recording.async_dispatcher_send") as send:
+        await sessions.stop(sid)
+    send.assert_called_once_with(hass, "ezviz_cloud_recorded_BK1")
+    assert (tmp_path / "ezviz_cloud/BK1/2026-10-04_22-00-00.mp4").read_bytes() == b"abcd"
+    with pytest.raises(SessionNotFoundError):
+        sessions.target(sid)
+
+
+async def test_only_one_session_per_serial(tmp_path: Path) -> None:
+    sessions, _, _ = _sessions(tmp_path)
+    first = sessions.start("BK1")
+    assert sessions.start("BK1") is None
+    assert sessions.start("BK2")
+    with patch("custom_components.ezviz_cloud.recording.async_dispatcher_send"):
+        await sessions.stop(first)  # type: ignore[arg-type]
+    assert sessions.start("BK1")
+
+
+async def test_append_errors(tmp_path: Path) -> None:
+    sessions, _, _ = _sessions(tmp_path)
+    with pytest.raises(SessionNotFoundError):
+        await sessions.append("nope", b"x", "video/mp4")
+    sid = sessions.start("BK1")
+    with pytest.raises(UnsupportedTypeError):
+        await sessions.append(sid, b"x", "text/html")  # type: ignore[arg-type]
+    with (
+        patch("custom_components.ezviz_cloud.recording.MAX_SESSION_BYTES", 3),
+        patch("custom_components.ezviz_cloud.recording.async_dispatcher_send"),
+    ):
+        await sessions.append(sid, b"ab", "video/webm")  # type: ignore[arg-type]
+        with pytest.raises(SessionTooLargeError):
+            await sessions.append(sid, b"cd", "video/webm")  # type: ignore[arg-type]
+    assert sessions.start("BK1")  # the oversized session was closed
+    assert len(list((tmp_path / "ezviz_cloud/BK1").glob("*.webm"))) == 1
+
+
+async def test_expire_closes_idle_session(tmp_path: Path) -> None:
+    sessions, clock, _ = _sessions(tmp_path)
+    sid = sessions.start("BK1")
+    await sessions.append(sid, b"ab", "video/mp4")  # type: ignore[arg-type]
+    clock.now += 29
+    with patch("custom_components.ezviz_cloud.recording.async_dispatcher_send") as send:
+        await sessions.expire()
+        send.assert_not_called()
+        clock.now += 2
+        await sessions.expire()
+        send.assert_called_once()
+    assert len(list((tmp_path / "ezviz_cloud/BK1").glob("*.mp4"))) == 1
+
+
+async def test_photo_and_stop_without_video(tmp_path: Path) -> None:
+    sessions, _, _ = _sessions(tmp_path)
+    sid = sessions.start("BK1")
+    serial, stem = sessions.target(sid)  # type: ignore[arg-type]
+    with patch("custom_components.ezviz_cloud.recording.async_dispatcher_send") as send:
+        await sessions.save_photo(serial, stem, b"\xff\xd8")
+        await sessions.stop(sid)  # type: ignore[arg-type]
+        await sessions.stop(sid)  # type: ignore[arg-type]  # second stop is a no-op
+    assert send.call_count == 2
+    assert [p.suffix for p in (tmp_path / "ezviz_cloud/BK1").iterdir()] == [".jpg"]
