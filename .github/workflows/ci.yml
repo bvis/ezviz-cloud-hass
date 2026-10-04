@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  # Every requirement we declare is an open floor and the dev image installs
+  # Home Assistant unpinned, so the environment our users end up with drifts
+  # underneath us between commits. Rebuilding Dockerfile.dev from scratch
+  # re-resolves all of it, so a weekly run turns "the outside world moved" into
+  # a red build instead of a user report.
+  schedule:
+    - cron: "13 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 3.13 runs the oldest supported core (2025.11); 3.14 is what current cores need.
+        python-version: ["3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build dev container
+        run: docker build -f Dockerfile.dev --build-arg PYTHON_VERSION=${{ matrix.python-version }} -t ezviz-cloud-dev .
+      - name: Run tests
+        run: |
+          mkdir -p coverage
+          docker run --rm -v "$(pwd)/coverage:/coverage" ezviz-cloud-dev \
+            pytest tests/unit/ -v \
+              --cov=custom_components/ezviz_cloud \
+              --cov-fail-under=90 \
+              --cov-report=term-missing \
+              --cov-report=json:/coverage/coverage.json
+      - name: Coverage summary
+        if: matrix.python-version == '3.13'
+        run: |
+          python3 -c "
+          import json
+          with open('coverage/coverage.json') as f:
+              data = json.load(f)
+          pct = data['totals']['percent_covered_display']
+          stmts = data['totals']['num_statements']
+          miss = data['totals']['missing_lines']
+          print('## Test Coverage')
+          print(f'| Metric | Value |')
+          print(f'|--------|-------|')
+          print(f'| **Coverage** | **{pct}%** |')
+          print(f'| Statements | {stmts} |')
+          print(f'| Missing | {miss} |')
+          " >> "$GITHUB_STEP_SUMMARY"
+
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build dev container
+        run: docker build -f Dockerfile.dev -t ezviz-cloud-dev .
+      - name: Run linter
+        run: docker run --rm ezviz-cloud-dev ruff check .
+
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build dev container
+        run: docker build -f Dockerfile.dev -t ezviz-cloud-dev .
+      - name: Check formatting
+        run: docker run --rm ezviz-cloud-dev ruff format --check .
+
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build dev container
+        run: docker build -f Dockerfile.dev -t ezviz-cloud-dev .
+      - name: Run type checker
+        run: docker run --rm ezviz-cloud-dev mypy custom_components/ezviz_cloud/ --ignore-missing-imports
+
+  dead-code:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build dev container
+        run: docker build -f Dockerfile.dev -t ezviz-cloud-dev .
+      - name: Run dead code analysis
+        run: docker run --rm ezviz-cloud-dev vulture custom_components/ezviz_cloud/ vulture_whitelist.py
+

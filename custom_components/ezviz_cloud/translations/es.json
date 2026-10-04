@@ -1,0 +1,38 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "App de EZVIZ Open Platform",
+        "description": "Crea una app en la consola de desarrolladores de EZVIZ de tu región (Account Settings → Appkey management) y pega su AppKey y AppSecret.",
+        "data": {
+          "region": "Región",
+          "app_key": "AppKey",
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "region": "La región de tu cuenta de EZVIZ. Un AppKey solo funciona en su propia región."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "EZVIZ ha rechazado el AppKey/AppSecret. Revisa ambos valores y que la región coincida con tu cuenta.",
+      "cannot_connect": "No se ha podido conectar con EZVIZ Open Platform."
+    },
+    "abort": {
+      "already_configured": "Este AppKey ya está configurado."
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "eu": "Europa",
+        "us": "Norteamérica",
+        "sa": "Sudamérica",
+        "sgp": "Singapur",
+        "india": "India",
+        "vn": "Vietnam",
+        "cn": "China"
+      }
+    }
+  }
+}

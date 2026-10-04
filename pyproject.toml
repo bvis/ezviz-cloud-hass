@@ -1,0 +1,58 @@
+[project]
+name = "ezviz-cloud-hass"
+# Mirror of manifest.json's version (the source of truth HA reads). Kept in
+# sync by tests/unit/test_version_consistency.py — bump both when releasing.
+version = "0.1.0"
+description = "Home Assistant integration for live view of EZVIZ cameras through the EZVIZ Open Platform"
+requires-python = ">=3.13"
+license = "MIT"
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    # Mirror any change in hacs.json — tests/unit/test_supported_versions.py enforces it.
+    "homeassistant>=2025.11.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.4.0",
+    "mypy>=1.8.0",
+    "vulture>=2.11",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F", "I", "N", "UP", "ANN", "B", "A", "C4", "SIM", "TCH",
+    "RUF", "PT", "RET", "PIE", "LOG", "T20", "ASYNC",
+]
+ignore = [
+    "E501",   # handled by the formatter
+    "RUF012", # mutable class attrs (HA pattern)
+    "TC001",  # HA needs runtime imports
+    "TC002",
+    "TC003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "ASYNC240", "B018", "PT004", "PT012"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["custom_components.ezviz_cloud"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.vulture]
+paths = ["custom_components/ezviz_cloud", "vulture_whitelist.py"]
+min_confidence = 80

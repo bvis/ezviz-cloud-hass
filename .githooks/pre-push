@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Replica of CI: builds Dockerfile.dev WITHOUT a volume mount, so only what is
+# committed gets checked, for every supported Python version.
+set -e
+
+DOCKER_IMAGE="ezviz-cloud-dev"
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+trap 'echo -e "${RED}✗ Pre-push checks failed${NC}"' ERR
+
+for PY in 3.13 3.14; do
+    TAG="${DOCKER_IMAGE}:py${PY}"
+    echo -e "${YELLOW}▶ Building image Python ${PY}${NC}"
+    docker build -q -f Dockerfile.dev --build-arg PYTHON_VERSION="$PY" -t "$TAG" . > /dev/null
+    if [ "$PY" = "3.13" ]; then
+        echo -e "${YELLOW}▶ Lint, format, types, dead code${NC}"
+        docker run --rm "$TAG" make lint format-check typecheck dead-code
+    fi
+    echo -e "${YELLOW}▶ Tests (py${PY})${NC}"
+    docker run --rm "$TAG" make test
+done
+
+echo -e "${GREEN}=== All CI checks passed ===${NC}"

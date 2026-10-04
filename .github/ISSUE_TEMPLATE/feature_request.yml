@@ -1,0 +1,24 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: What problem does it solve?
+    validations:
+      required: true
+
+  - type: input
+    id: camera-model
+    attributes:
+      label: Related camera model(s)
