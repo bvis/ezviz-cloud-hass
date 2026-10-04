@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - **Configure is a menu** with *Verification codes* and *Recordings*, so changing the retention never touches the stored codes.
 - **The integration is a hub** with one device per camera.
+- **Diagnostics list the cameras** with their serial, name and recording mode. **Requests to EZVIZ:** none added.
 
 ## [0.3.1] - 2026-10-04
 
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Verification codes stored in the integration.** Configure on the integration lists the cameras of the account and saves each one's code, so it no longer has to be in the dashboard. A `code` on the card still works and takes precedence. **Requests to EZVIZ:** one camera list request each time the dialog opens.
 - **Camera picker in the card editor.** The serial field is a dropdown with the account's cameras and says which encrypted ones have no stored code. **Requests to EZVIZ:** one camera list request each time the editor opens.
+- **Diagnostics say which cameras have a stored code**, by serial only, never the code. **Requests to EZVIZ:** none added.
 
 ## [0.1.2] - 2026-10-04
 
