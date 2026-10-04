@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-10-04
+
+### Fixed
+- **Player errors are translated.** EZVIZ's player only reports failures in English, so the card now recognises its messages (weak camera connection, camera offline, expired session, too many viewers, no permission, camera or service error) and shows them in the user's language. A message it doesn't know is still shown in English. **Requests to EZVIZ:** none added.
+
 ## [0.3.0] - 2026-10-04
 
 ### Added

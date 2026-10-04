@@ -71,4 +71,5 @@ def test_card_uses_exactly_its_keys() -> None:
     used |= set(re.findall(r"(?:key|errorKey):[\"'](\w+)", CARD))
     used |= {f"label_{n}" for n in re.findall(r'\{ name: "(\w+)"', CARD)}
     used |= set(re.findall(r'_showProgress\(\d+, "(\w+)"', CARD))
+    used |= set(re.findall(r'^\s+\[/.+/i, "(\w+)"\],$', CARD, re.M))
     assert used == set(CARD_STRINGS["en"])

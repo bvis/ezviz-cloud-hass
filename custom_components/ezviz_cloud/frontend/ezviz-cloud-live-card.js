@@ -36,7 +36,14 @@ const STRINGS = /* translations */ {
     "label_title": "Title",
     "label_max_seconds": "Stop after",
     "code_helper": "Leave empty to use the code stored in the integration (Settings → Devices & services → EZVIZ Cloud → Configure).",
-    "no_code_stored": "no code stored"
+    "no_code_stored": "no code stored",
+    "err_network": "The camera didn't answer: its connection is weak. Check its Wi-Fi and try again.",
+    "err_offline": "The camera isn't connected to EZVIZ.",
+    "err_token": "The EZVIZ session expired. Try again.",
+    "err_viewers": "Too many people are watching this camera at once.",
+    "err_permission": "This account isn't allowed to view the camera.",
+    "err_device": "The camera reported an error. Try again.",
+    "err_service": "EZVIZ returned an error. Try again in a while."
   },
   "es": {
     "watch_live": "Ver en directo",
@@ -55,7 +62,14 @@ const STRINGS = /* translations */ {
     "label_title": "Título",
     "label_max_seconds": "Detener tras",
     "code_helper": "Déjalo vacío para usar el código guardado en la integración (Ajustes → Dispositivos y servicios → EZVIZ Cloud → Configurar).",
-    "no_code_stored": "sin código guardado"
+    "no_code_stored": "sin código guardado",
+    "err_network": "La cámara no ha respondido: su conexión es débil. Comprueba su wifi y vuelve a intentarlo.",
+    "err_offline": "La cámara no está conectada a EZVIZ.",
+    "err_token": "La sesión con EZVIZ ha caducado. Vuelve a intentarlo.",
+    "err_viewers": "Hay demasiadas personas viendo la cámara a la vez.",
+    "err_permission": "Esta cuenta no tiene permiso para ver la cámara.",
+    "err_device": "La cámara ha dado un error. Vuelve a intentarlo.",
+    "err_service": "EZVIZ ha dado un error. Vuelve a intentarlo en un rato."
   },
   "ca": {
     "watch_live": "Veure en directe",
@@ -74,7 +88,14 @@ const STRINGS = /* translations */ {
     "label_title": "Títol",
     "label_max_seconds": "Atura després de",
     "code_helper": "Deixa-ho buit per fer servir el codi desat a la integració (Configuració → Dispositius i serveis → EZVIZ Cloud → Configura).",
-    "no_code_stored": "sense codi desat"
+    "no_code_stored": "sense codi desat",
+    "err_network": "La càmera no ha respost: la seva connexió és feble. Comprova'n el wifi i torna-ho a provar.",
+    "err_offline": "La càmera no està connectada a EZVIZ.",
+    "err_token": "La sessió amb EZVIZ ha caducat. Torna-ho a provar.",
+    "err_viewers": "Hi ha massa gent mirant la càmera alhora.",
+    "err_permission": "Aquest compte no té permís per veure la càmera.",
+    "err_device": "La càmera ha donat un error. Torna-ho a provar.",
+    "err_service": "EZVIZ ha donat un error. Torna-ho a provar d'aquí a una estona."
   },
   "fr": {
     "watch_live": "Voir en direct",
@@ -93,7 +114,14 @@ const STRINGS = /* translations */ {
     "label_title": "Titre",
     "label_max_seconds": "Arrêter après",
     "code_helper": "Laissez vide pour utiliser le code enregistré dans l'intégration (Paramètres → Appareils et services → EZVIZ Cloud → Configurer).",
-    "no_code_stored": "aucun code enregistré"
+    "no_code_stored": "aucun code enregistré",
+    "err_network": "La caméra n'a pas répondu : sa connexion est faible. Vérifiez son Wi-Fi et réessayez.",
+    "err_offline": "La caméra n'est pas connectée à EZVIZ.",
+    "err_token": "La session EZVIZ a expiré. Réessayez.",
+    "err_viewers": "Trop de personnes regardent cette caméra en même temps.",
+    "err_permission": "Ce compte n'est pas autorisé à voir la caméra.",
+    "err_device": "La caméra a signalé une erreur. Réessayez.",
+    "err_service": "EZVIZ a renvoyé une erreur. Réessayez dans un moment."
   },
   "de": {
     "watch_live": "Live ansehen",
@@ -112,7 +140,14 @@ const STRINGS = /* translations */ {
     "label_title": "Titel",
     "label_max_seconds": "Stoppen nach",
     "code_helper": "Leer lassen, um den in der Integration gespeicherten Code zu verwenden (Einstellungen → Geräte & Dienste → EZVIZ Cloud → Konfigurieren).",
-    "no_code_stored": "kein Code gespeichert"
+    "no_code_stored": "kein Code gespeichert",
+    "err_network": "Die Kamera hat nicht geantwortet: Ihre Verbindung ist schwach. Prüfe ihr WLAN und versuche es erneut.",
+    "err_offline": "Die Kamera ist nicht mit EZVIZ verbunden.",
+    "err_token": "Die EZVIZ-Sitzung ist abgelaufen. Versuche es erneut.",
+    "err_viewers": "Zu viele Personen sehen sich diese Kamera gleichzeitig an.",
+    "err_permission": "Dieses Konto darf die Kamera nicht ansehen.",
+    "err_device": "Die Kamera hat einen Fehler gemeldet. Versuche es erneut.",
+    "err_service": "EZVIZ hat einen Fehler zurückgegeben. Versuche es später erneut."
   },
   "it": {
     "watch_live": "Guarda dal vivo",
@@ -131,7 +166,14 @@ const STRINGS = /* translations */ {
     "label_title": "Titolo",
     "label_max_seconds": "Ferma dopo",
     "code_helper": "Lascia vuoto per usare il codice salvato nell'integrazione (Impostazioni → Dispositivi e servizi → EZVIZ Cloud → Configura).",
-    "no_code_stored": "nessun codice salvato"
+    "no_code_stored": "nessun codice salvato",
+    "err_network": "La telecamera non ha risposto: la sua connessione è debole. Controlla il Wi-Fi e riprova.",
+    "err_offline": "La telecamera non è connessa a EZVIZ.",
+    "err_token": "La sessione EZVIZ è scaduta. Riprova.",
+    "err_viewers": "Troppe persone stanno guardando questa telecamera contemporaneamente.",
+    "err_permission": "Questo account non ha il permesso di vedere la telecamera.",
+    "err_device": "La telecamera ha segnalato un errore. Riprova.",
+    "err_service": "EZVIZ ha restituito un errore. Riprova tra un po'."
   },
   "pt": {
     "watch_live": "Ver em direto",
@@ -150,7 +192,14 @@ const STRINGS = /* translations */ {
     "label_title": "Título",
     "label_max_seconds": "Parar após",
     "code_helper": "Deixe vazio para usar o código guardado na integração (Definições → Dispositivos e serviços → EZVIZ Cloud → Configurar).",
-    "no_code_stored": "sem código guardado"
+    "no_code_stored": "sem código guardado",
+    "err_network": "A câmara não respondeu: a ligação está fraca. Verifique o Wi-Fi e tente novamente.",
+    "err_offline": "A câmara não está ligada à EZVIZ.",
+    "err_token": "A sessão EZVIZ expirou. Tente novamente.",
+    "err_viewers": "Há demasiadas pessoas a ver esta câmara ao mesmo tempo.",
+    "err_permission": "Esta conta não tem permissão para ver a câmara.",
+    "err_device": "A câmara reportou um erro. Tente novamente.",
+    "err_service": "A EZVIZ devolveu um erro. Tente novamente daqui a pouco."
   },
   "pt-BR": {
     "watch_live": "Ver ao vivo",
@@ -169,7 +218,14 @@ const STRINGS = /* translations */ {
     "label_title": "Título",
     "label_max_seconds": "Parar após",
     "code_helper": "Deixe vazio para usar o código salvo na integração (Configurações → Dispositivos e serviços → EZVIZ Cloud → Configurar).",
-    "no_code_stored": "sem código salvo"
+    "no_code_stored": "sem código salvo",
+    "err_network": "A câmera não respondeu: a conexão está fraca. Verifique o Wi-Fi e tente de novo.",
+    "err_offline": "A câmera não está conectada à EZVIZ.",
+    "err_token": "A sessão da EZVIZ expirou. Tente de novo.",
+    "err_viewers": "Tem gente demais assistindo a esta câmera ao mesmo tempo.",
+    "err_permission": "Esta conta não tem permissão para ver a câmera.",
+    "err_device": "A câmera informou um erro. Tente de novo.",
+    "err_service": "A EZVIZ retornou um erro. Tente de novo daqui a pouco."
   },
   "nl": {
     "watch_live": "Live bekijken",
@@ -188,9 +244,30 @@ const STRINGS = /* translations */ {
     "label_title": "Titel",
     "label_max_seconds": "Stoppen na",
     "code_helper": "Laat leeg om de code te gebruiken die in de integratie is opgeslagen (Instellingen → Apparaten & diensten → EZVIZ Cloud → Configureren).",
-    "no_code_stored": "geen code opgeslagen"
+    "no_code_stored": "geen code opgeslagen",
+    "err_network": "De camera reageerde niet: de verbinding is zwak. Controleer de wifi en probeer het opnieuw.",
+    "err_offline": "De camera is niet verbonden met EZVIZ.",
+    "err_token": "De EZVIZ-sessie is verlopen. Probeer het opnieuw.",
+    "err_viewers": "Te veel mensen kijken tegelijk naar deze camera.",
+    "err_permission": "Dit account mag de camera niet bekijken.",
+    "err_device": "De camera meldde een fout. Probeer het opnieuw.",
+    "err_service": "EZVIZ gaf een fout terug. Probeer het later opnieuw."
   }
 } /* end translations */;
+
+// The player reports stream failures as English text only, from a fixed table in
+// the pinned ezuikit-js version. Known texts map to translated messages; anything
+// else is shown as the player wrote it.
+// ponytail: matches the 9.0.23 texts; after bumping EZUIKIT, check the table still matches.
+const PLAYER_ERRORS = [
+  [/network (is poor|on the device side is poor|abnormality)|streaming connection is disconnected|client network timeout/i, "err_network"],
+  [/not online|device does not exist/i, "err_offline"],
+  [/token (expired|invalid)/i, "err_token"],
+  [/simultaneous viewers|number of viewing channels/i, "err_viewers"],
+  [/no permission to view/i, "err_permission"],
+  [/device (channel )?abnormal|channel is abnormal|device channel error/i, "err_device"],
+  [/service exception|stream retrieval failed/i, "err_service"],
+];
 
 // The user's language: exact tag (pt-BR), then its base (pt), then English.
 const pickLang = (hass) => {
@@ -373,7 +450,14 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
       if (!m) return;
       // The player's own messages exist only in English and Chinese.
       if (m.errorKey) this._fail(t(this._lang, m.errorKey));
-      else if ("error" in m) this._fail(t(this._lang, "could_not_start", { msg: m.error || t(this._lang, "player_error") }));
+      else if ("error" in m) {
+        const known = PLAYER_ERRORS.find(([re]) => re.test(m.error || ""));
+        this._fail(
+          known
+            ? t(this._lang, known[1])
+            : t(this._lang, "could_not_start", { msg: m.error || t(this._lang, "player_error") }),
+        );
+      }
       else if (m.ready) this._hideProgress();
       else this._showProgress(m.stage, m.key);
     };
