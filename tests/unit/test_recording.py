@@ -1,0 +1,117 @@
+"""Recording storage, upload sessions and the upload view."""
+
+from __future__ import annotations
+
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import pytest
+from homeassistant.util import dt as dt_util
+
+from custom_components.ezviz_cloud.recording import RecordingStore
+
+NOW = datetime(2026, 10, 4, 22, 0, 0, tzinfo=dt_util.get_default_time_zone())
+
+
+def _make(
+    store: RecordingStore, serial: str, when: datetime, video: bool = True, photo: bool = True
+) -> str:
+    stem = store.stem_for(when)
+    if video:
+        part = store.video_part(serial, stem, "mp4")
+        store.append(part, b"data")
+        store.finalize(part)
+    if photo:
+        store.save_photo(store.photo_path(serial, stem), b"\xff\xd8")
+    return stem
+
+
+def test_paths_and_names(tmp_path: Path) -> None:
+    store = RecordingStore(tmp_path)
+    stem = store.stem_for(NOW)
+    assert stem == "2026-10-04_22-00-00"
+    assert (
+        store.video_part("BK1", stem, "mp4")
+        == tmp_path / "ezviz_cloud/BK1/2026-10-04_22-00-00.mp4.part"
+    )
+    assert store.photo_path("BK1", stem) == tmp_path / "ezviz_cloud/BK1/2026-10-04_22-00-00.jpg"
+
+
+@pytest.mark.parametrize("serial", ["../etc", "BK1/..", "", "a b"])
+def test_rejects_unsafe_serial(tmp_path: Path, serial: str) -> None:
+    with pytest.raises(ValueError, match="Unsafe serial"):
+        RecordingStore(tmp_path).photo_path(serial, "2026-10-04_22-00-00")
+
+
+def test_append_and_finalize(tmp_path: Path) -> None:
+    store = RecordingStore(tmp_path)
+    part = store.video_part("BK1", "2026-10-04_22-00-00", "mp4")
+    store.append(part, b"ab")
+    store.append(part, b"cd")
+    final = store.finalize(part)
+    assert final == part.with_suffix("")
+    assert final is not None
+    assert final.read_bytes() == b"abcd"
+    assert not part.exists()
+
+
+def test_finalize_empty_or_missing_part(tmp_path: Path) -> None:
+    store = RecordingStore(tmp_path)
+    part = store.video_part("BK1", "2026-10-04_22-00-00", "mp4")
+    assert store.finalize(part) is None
+    part.touch()
+    assert store.finalize(part) is None
+    assert not part.exists()
+
+
+def test_recordings_newest_first_and_latest(tmp_path: Path) -> None:
+    store = RecordingStore(tmp_path)
+    old = _make(store, "BK1", NOW - timedelta(hours=1), photo=False)
+    new = _make(store, "BK1", NOW)
+    (tmp_path / "ezviz_cloud/BK1/notes.txt").write_text("ignored")
+    (tmp_path / "ezviz_cloud/BK1/snapshot.jpg").write_bytes(b"not a recording")
+    store.video_part("BK1", store.stem_for(NOW + timedelta(minutes=1)), "mp4").write_bytes(b"x")
+    recs = store.recordings("BK1")
+    assert [r.stem for r in recs] == [new, old]
+    assert recs[0].started == NOW
+    assert recs[0].video is not None
+    assert recs[0].photo is not None
+    assert recs[1].photo is None
+    assert store.latest("BK1") == recs[0]
+    assert store.latest("OTHER") is None
+
+
+def test_recover_renames_parts(tmp_path: Path) -> None:
+    store = RecordingStore(tmp_path)
+    part = store.video_part("BK1", "2026-10-04_22-00-00", "webm")
+    part.write_bytes(b"x")
+    assert store.recover() == 1
+    assert (tmp_path / "ezviz_cloud/BK1/2026-10-04_22-00-00.webm").exists()
+    assert RecordingStore(tmp_path / "empty").recover() == 0
+
+
+def test_cleanup_by_age_and_count(tmp_path: Path) -> None:
+    store = RecordingStore(tmp_path)
+    stems = [_make(store, "BK1", NOW - timedelta(days=d)) for d in (0, 1, 2, 20)]
+    removed = store.cleanup("BK1", retention_days=10, max_count=2, now=NOW)
+    assert removed == 2
+    assert [r.stem for r in store.recordings("BK1")] == stems[:2]
+    assert len(os.listdir(tmp_path / "ezviz_cloud/BK1")) == 4  # two videos + two photos
+
+
+def test_cleanup_without_count_limit(tmp_path: Path) -> None:
+    store = RecordingStore(tmp_path)
+    for d in range(5):
+        _make(store, "BK1", NOW - timedelta(days=d))
+    assert store.cleanup("BK1", retention_days=10, max_count=0, now=NOW) == 0
+    assert store.cleanup("BK1", retention_days=1, max_count=0, now=NOW) == 3
+
+
+def test_uri(tmp_path: Path) -> None:
+    store = RecordingStore(tmp_path)
+    path = store.photo_path("BK1", "2026-10-04_22-00-00")
+    assert (
+        store.uri(path)
+        == "media-source://media_source/local/ezviz_cloud/BK1/2026-10-04_22-00-00.jpg"
+    )
