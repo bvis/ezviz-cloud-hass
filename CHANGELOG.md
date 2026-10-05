@@ -5,12 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-- **New cameras show up on their own.** When the card editor or *Verification codes* lists a camera the integration has no device for yet, the account reloads and adds it. **Requests to EZVIZ:** a token and a camera list request, only when a new camera appears in a list you opened.
+## [0.4.1] - 2026-10-05
 
 ### Fixed
+- **New cameras no longer need the integration to be reloaded by hand.** When the card editor or *Verification codes* lists a camera the integration has no device for yet, the account reloads and adds it. **Requests to EZVIZ:** a token and a camera list request, only when a new camera appears in a list you opened.
 - **Old recordings no longer linger in *Last recording* and *Last photo*** after the daily cleanup deletes them. **Requests to EZVIZ:** none added.
 - **A recording that reaches the 60 MB limit is no longer reported as failed** on the card: it is kept up to the limit and the *● Record* button comes back. **Requests to EZVIZ:** none added.
 - **The same camera in two configured accounts** no longer creates duplicate entities: it stays with the first account that loads. **Requests to EZVIZ:** none added.
