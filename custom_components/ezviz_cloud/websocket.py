@@ -11,7 +11,7 @@ from homeassistant.components.websocket_api.decorators import async_response, we
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 
-from .api import EzvizCloudError
+from .api import Camera, EzvizCloudError
 from .const import CONF_CODES, DATA_RECORDER, DOMAIN, MODE_RECORD
 
 
@@ -84,6 +84,7 @@ async def ws_get_devices(
         except EzvizCloudError as err:
             connection.send_error(msg["id"], "api_error", str(err))
             return
+        schedule_reload_if_new(hass, entry, cameras)
         devices += [
             {
                 "entry_id": entry.entry_id,
@@ -96,6 +97,13 @@ async def ws_get_devices(
             for c in cameras
         ]
     connection.send_result(msg["id"], devices)
+
+
+def schedule_reload_if_new(hass: HomeAssistant, entry: ConfigEntry, cameras: list[Camera]) -> None:
+    """Reload the account when a camera list shows a camera it has no entities for."""
+    known = {c.serial for c in entry.runtime_data.cameras}
+    if any(c.serial not in known for c in cameras):
+        hass.config_entries.async_schedule_reload(entry.entry_id)
 
 
 def _entry_for_serial(hass: HomeAssistant, serial: str) -> ConfigEntry | None:

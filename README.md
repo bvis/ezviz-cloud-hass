@@ -121,7 +121,7 @@ Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo
 
 Video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser showing the card. That's why the `camera` entity only shows the photo of the last recording. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
 
-**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). The live stream itself is opened by the player in the browser.
+**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). If that list has a camera the integration has no device for, the account reloads to add it (a token and a camera list request). The live stream itself is opened by the player in the browser.
 
 ## Troubleshooting
 

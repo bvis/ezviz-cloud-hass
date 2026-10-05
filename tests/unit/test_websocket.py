@@ -12,6 +12,7 @@ from custom_components.ezviz_cloud.api import AccessToken, Camera, EzvizCloudErr
 from custom_components.ezviz_cloud.const import DATA_RECORDER
 from custom_components.ezviz_cloud.websocket import (
     async_register_commands,
+    schedule_reload_if_new,
     ws_get_devices,
     ws_get_token,
     ws_recording_start,
@@ -122,6 +123,17 @@ async def test_devices_lists_cameras_of_every_account() -> None:
             },
         ],
     )
+
+
+def test_new_camera_reloads_the_account() -> None:
+    hass, entry = MagicMock(), _entry("a")
+    entry.runtime_data.cameras = [Camera("BK1", 1, "Door", True)]
+    schedule_reload_if_new(hass, entry, [Camera("BK1", 2, "Door 2", True)])
+    hass.config_entries.async_schedule_reload.assert_not_called()
+    schedule_reload_if_new(
+        hass, entry, [Camera("BK1", 1, "Door", True), Camera("BK9", 1, "New", False)]
+    )
+    hass.config_entries.async_schedule_reload.assert_called_once_with("a")
 
 
 async def test_devices_reports_api_failure() -> None:

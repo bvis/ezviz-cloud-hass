@@ -42,6 +42,7 @@ from .const import (
     DOMAIN,
     REGIONS,
 )
+from .websocket import schedule_reload_if_new
 
 DATA_SCHEMA = vol.Schema(
     {
@@ -130,6 +131,7 @@ class EzvizCloudOptionsFlow(OptionsFlow):
             return self.async_abort(reason="cannot_connect")
         if not cameras:
             return self.async_abort(reason="no_cameras")
+        schedule_reload_if_new(self.hass, self.config_entry, cameras)
         # One entry per device: a multi-channel device shares a single code.
         devices: dict[str, Camera] = {}
         for camera in cameras:

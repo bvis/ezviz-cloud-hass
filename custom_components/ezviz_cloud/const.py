@@ -60,7 +60,7 @@ FIRST_CHUNK_TIMEOUT: Final = 120
 
 
 def signal_recorded(serial: str) -> str:
-    """Dispatcher signal sent when a recording of this camera is saved."""
+    """Dispatcher signal sent when recordings of this camera are saved or deleted."""
     return f"{DOMAIN}_recorded_{serial}"
 
 

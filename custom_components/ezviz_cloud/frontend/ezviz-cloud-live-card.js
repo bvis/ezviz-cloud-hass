@@ -643,6 +643,12 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
           body: blob,
           headers: { "Content-Type": type },
         });
+        if (res.status === 410) {
+          // The integration closed the recording at its size limit and kept it.
+          if (this._session === sid) this._session = null;
+          this._box?.querySelector("iframe")?.contentWindow?.postMessage("stop-recording", "*");
+          return;
+        }
         if (!res.ok) throw new Error(`upload ${res.status}`);
       })
       .catch(() => this._recordingFailed());

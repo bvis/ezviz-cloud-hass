@@ -10,13 +10,13 @@ from pathlib import Path
 
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
+from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
@@ -104,9 +104,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
     except EzvizCloudError as err:
         raise ConfigEntryNotReady(str(err)) from err
 
+    # A camera shared with another configured account stays with that one: its
+    # entities, recordings and folder are keyed by serial.
+    taken = {
+        c.serial
+        for e in hass.config_entries.async_entries(DOMAIN)
+        if e.entry_id != entry.entry_id and e.state is ConfigEntryState.LOADED
+        for c in e.runtime_data.cameras
+    }
     # One device per serial: a multi-channel device shares a single code and folder.
     cameras: dict[str, Camera] = {}
     for camera in listed:
+        if camera.serial in taken:
+            _LOGGER.info("%s is already set up from another EZVIZ Cloud account", camera.serial)
+            continue
         cameras.setdefault(camera.serial, camera)
     entry.runtime_data = EzvizCloudData(
         manager, list(cameras.values()), dict.fromkeys(cameras, MODE_VIEW)
@@ -125,6 +136,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
         )
         if removed:
             _LOGGER.debug("Deleted %s old recording(s) of %s", removed, serial)
+            async_dispatcher_send(hass, signal_recorded(serial))
 
     async def _cleanup_all(_now: datetime | None = None) -> None:
         for serial in cameras:

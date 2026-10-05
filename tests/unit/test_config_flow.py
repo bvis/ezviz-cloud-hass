@@ -67,8 +67,10 @@ def _options_flow(
     entry.runtime_data.manager.api.async_get_cameras = AsyncMock(
         return_value=cameras, side_effect=exc
     )
+    entry.runtime_data.cameras = [Camera("BK1", 1, "Door", True)]
     flow = EzvizCloudOptionsFlow()
     flow.__dict__["_entry"] = entry
+    flow.hass = MagicMock()
     return flow
 
 
@@ -92,7 +94,10 @@ async def test_options_form_lists_cameras_once_and_marks_stored_codes() -> None:
         Camera("BK1", 2, "Door 2", True),
         Camera("BK2", 1, "Yard", False),
     ]
-    result = await _options_flow(cameras=cams).async_step_codes()
+    flow = _options_flow(cameras=cams)
+    result = await flow.async_step_codes()
+    # BK2 has no entities yet: the account reloads to add it.
+    flow.hass.config_entries.async_schedule_reload.assert_called_once()
     assert result["type"] == "form"
     options = result["data_schema"].schema["serial"].config["options"]
     assert [(o["value"], o["label"]) for o in options] == [

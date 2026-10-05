@@ -55,25 +55,23 @@ class RecordingStore:
         """File name stem for a recording started at `when` (local time)."""
         return dt_util.as_local(when).strftime(_STEM_FORMAT)
 
-    def _dir(self, serial: str, create: bool = False) -> Path:
+    def _dir(self, serial: str) -> Path:
         # Serials come from the camera list, but they end up in a path: be strict.
         if not _SERIAL.fullmatch(serial):
             raise ValueError(f"Unsafe serial: {serial!r}")
-        folder = self.root / serial
-        if create:
-            folder.mkdir(parents=True, exist_ok=True)
-        return folder
+        return self.root / serial
 
     def video_part(self, serial: str, stem: str, ext: str) -> Path:
         """Path the video is written to while it is being recorded."""
-        return self._dir(serial, create=True) / f"{stem}.{ext}.part"
+        return self._dir(serial) / f"{stem}.{ext}.part"
 
     def photo_path(self, serial: str, stem: str) -> Path:
         """Path of the photo of a recording."""
-        return self._dir(serial, create=True) / f"{stem}.jpg"
+        return self._dir(serial) / f"{stem}.jpg"
 
     def append(self, path: Path, data: bytes) -> None:
         """Append one chunk to a video being recorded."""
+        path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("ab") as file:
             file.write(data)
 
@@ -92,6 +90,7 @@ class RecordingStore:
 
     def save_photo(self, path: Path, data: bytes) -> None:
         """Write the photo atomically so the camera entity never reads half a file."""
+        path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".jpg.tmp")
         tmp.write_bytes(data)
         tmp.replace(path)
@@ -264,16 +263,26 @@ class RecordingUploadView(HomeAssistantView):
         if (request.content_length or 0) > MAX_CHUNK_BYTES:
             return self.json_message("Chunk too large", 413)
         sessions = request.app[KEY_HASS].data[DATA_RECORDER]
-        data = await request.read()
+        try:
+            sessions.target(session_id)
+        except SessionNotFoundError:
+            return self.json_message("Unknown session", 404)
+        # A chunked upload has no Content-Length: stop reading once past the cap.
+        data = bytearray()
+        async for block in request.content.iter_chunked(64 * 1024):
+            data += block
+            if len(data) > MAX_CHUNK_BYTES:
+                return self.json_message("Chunk too large", 413)
         try:
             if request.content_type == "image/jpeg":
-                await sessions.add_photo(session_id, data)
+                await sessions.add_photo(session_id, bytes(data))
             else:
-                await sessions.append(session_id, data, request.content_type)
+                await sessions.append(session_id, bytes(data), request.content_type)
         except SessionNotFoundError:
             return self.json_message("Unknown session", 404)
         except SessionTooLargeError:
-            return self.json_message("Recording too large", 413)
+            # Not an error for the card: the recording is kept up to the limit.
+            return self.json_message("Recording closed at its size limit", 410)
         except UnsupportedTypeError:
             return self.json_message("Unsupported video type", 415)
         except OSError as err:

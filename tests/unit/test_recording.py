@@ -46,6 +46,8 @@ def test_paths_and_names(tmp_path: Path) -> None:
         == tmp_path / "ezviz_cloud/BK1/2026-10-04_22-00-00.mp4.part"
     )
     assert store.photo_path("BK1", stem) == tmp_path / "ezviz_cloud/BK1/2026-10-04_22-00-00.jpg"
+    # Paths are built in the event loop: only the executor writes touch the disk.
+    assert not (tmp_path / "ezviz_cloud").exists()
 
 
 @pytest.mark.parametrize("serial", ["../etc", "BK1/..", "", "a b"])
@@ -70,7 +72,7 @@ def test_finalize_empty_or_missing_part(tmp_path: Path) -> None:
     store = RecordingStore(tmp_path)
     part = store.video_part("BK1", "2026-10-04_22-00-00", "mp4")
     assert store.finalize(part) is None
-    part.touch()
+    store.append(part, b"")
     assert store.finalize(part) is None
     assert not part.exists()
 
@@ -95,7 +97,7 @@ def test_recordings_newest_first_and_latest(tmp_path: Path) -> None:
 def test_recover_renames_parts(tmp_path: Path) -> None:
     store = RecordingStore(tmp_path)
     part = store.video_part("BK1", "2026-10-04_22-00-00", "webm")
-    part.write_bytes(b"x")
+    store.append(part, b"x")
     assert store.recover() == 1
     assert (tmp_path / "ezviz_cloud/BK1/2026-10-04_22-00-00.webm").exists()
     assert RecordingStore(tmp_path / "empty").recover() == 0
@@ -223,7 +225,14 @@ def _request(
     request.app = {KEY_HASS: MagicMock(data={DATA_RECORDER: sessions})}
     request.content_type = ctype
     request.content_length = length
-    request.read = AsyncMock(return_value=body)
+    request.read_blocks = []
+
+    async def blocks(_size: int):  # type: ignore[no-untyped-def]
+        for start in range(0, len(body), 4):
+            request.read_blocks.append(body[start : start + 4])
+            yield body[start : start + 4]
+
+    request.content.iter_chunked = blocks
     return request
 
 
@@ -232,7 +241,7 @@ def _request(
     [
         (None, 200),
         (SessionNotFoundError("x"), 404),
-        (SessionTooLargeError("x"), 413),
+        (SessionTooLargeError("x"), 410),
         (UnsupportedTypeError("x"), 415),
         (OSError("disk full"), 500),
     ],
@@ -257,7 +266,26 @@ async def test_upload_rejects_huge_chunk_before_reading() -> None:
     request = _request(sessions, length=9 * 1024 * 1024)
     resp = await RecordingUploadView().post(request, "sid")
     assert resp.status == 413
-    request.read.assert_not_awaited()
+    assert request.read_blocks == []
+
+
+async def test_upload_stops_reading_a_chunked_body_past_the_cap() -> None:
+    sessions = MagicMock()
+    sessions.append = AsyncMock()
+    request = _request(sessions, body=b"0123456789", length=None)
+    with patch("custom_components.ezviz_cloud.recording.MAX_CHUNK_BYTES", 5):
+        resp = await RecordingUploadView().post(request, "sid")
+    assert resp.status == 413
+    assert len(request.read_blocks) == 2
+    sessions.append.assert_not_awaited()
+
+
+async def test_upload_to_unknown_session_is_not_read(tmp_path: Path) -> None:
+    sessions, _, _ = _sessions(tmp_path)
+    request = _request(sessions)  # type: ignore[arg-type]
+    resp = await RecordingUploadView().post(request, "made-up")
+    assert resp.status == 404
+    assert request.read_blocks == []
 
 
 def test_upload_view_needs_auth() -> None:
