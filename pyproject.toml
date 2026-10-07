@@ -4,14 +4,14 @@ name = "ezviz-cloud-hass"
 # sync by tests/unit/test_version_consistency.py — bump both when releasing.
 version = "0.4.1"
 description = "Home Assistant integration for live view of EZVIZ cameras through the EZVIZ Open Platform"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 license = "MIT"
 dependencies = []
 
 [project.optional-dependencies]
 dev = [
     # Mirror any change in hacs.json — tests/unit/test_supported_versions.py enforces it.
-    "homeassistant>=2025.11.0",
+    "homeassistant>=2026.10.0",
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.1.0",
@@ -28,7 +28,7 @@ asyncio_mode = "auto"
 testpaths = ["tests"]
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py314"
 line-length = 100
 
 [tool.ruff.lint]
@@ -53,7 +53,7 @@ ignore = [
 known-first-party = ["custom_components.ezviz_cloud"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 strict = true
 warn_return_any = true
 warn_unused_configs = true

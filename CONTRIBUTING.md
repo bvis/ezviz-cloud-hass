@@ -23,7 +23,7 @@ docker run --rm -v "$PWD":/app -w /app ezviz-cloud-dev make check
 | `make check` | Lint, format check, type check, tests and dead code |
 | `make test` | Unit tests with coverage (90% minimum) |
 | `make format` | Format the code |
-| `make pre-push` | Run the pre-push checks by hand (Python 3.13 and 3.14) |
+| `make pre-push` | Run the pre-push checks by hand (Python 3.14) |
 
 ## Conventions
 

@@ -22,8 +22,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # 3.13 runs the oldest supported core (2025.11); 3.14 is what current cores need.
-        python-version: ["3.13", "3.14"]
+        # Every supported core (2026.10+) needs Python 3.14.
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Build dev container
@@ -38,7 +38,7 @@ jobs:
               --cov-report=term-missing \
               --cov-report=json:/coverage/coverage.json
       - name: Coverage summary
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.14'
         run: |
           python3 -c "
           import json
