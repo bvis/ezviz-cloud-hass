@@ -35,7 +35,7 @@ If you try another model, please open an issue with the result, good or bad, so 
 
 ## Requirements
 
-- Home Assistant 2025.11 or newer.
+- Home Assistant 2026.10 or newer.
 - An EZVIZ account with the camera added in the EZVIZ app.
 - A free EZVIZ developer account in **the same region** as your EZVIZ account, to get an AppKey and AppSecret.
 - The camera's **verification code**: six capital letters on the device or its box label.

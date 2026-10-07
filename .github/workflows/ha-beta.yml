@@ -4,10 +4,9 @@ name: Newest HA core
 # run today. This one tests against the newest release on PyPI, beta included,
 # installed under that core's own package_constraints.txt exactly as Home
 # Assistant would. We declare no requirements, but we lean on core internals
-# (camera, http, websocket_api, frontend static paths) and import voluptuous,
-# which the core no longer declares itself since it moved to probatio. A beta
-# lands about a week before each stable, so the daily run turns a break there
-# into a red build while there is still time to react.
+# (camera, http, websocket_api, frontend static paths, probatio), which can
+# change in any release. A beta lands about a week before each stable, so the
+# daily run turns a break there into a red build while there is still time to react.
 #
 # Not a required check: a broken beta must not block merges.
 
@@ -51,6 +50,6 @@ jobs:
             # numpy and PyTurboJPEG: importing the HA camera platform pulls in the stream and image helpers.
             pip install --quiet --no-cache-dir --root-user-action=ignore -c /tmp/constraints.txt \
               "homeassistant==$HA_VERSION" numpy PyTurboJPEG pytest pytest-asyncio
-            pip list 2>/dev/null | grep -iE "^(homeassistant|voluptuous|probatio|aiohttp) "
+            pip list 2>/dev/null | grep -iE "^(homeassistant|probatio|aiohttp) "
             pytest tests/unit/ -q -p no:cacheprovider
           '

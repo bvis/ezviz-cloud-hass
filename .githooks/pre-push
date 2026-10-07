@@ -11,11 +11,11 @@ NC='\033[0m'
 
 trap 'echo -e "${RED}✗ Pre-push checks failed${NC}"' ERR
 
-for PY in 3.13 3.14; do
+for PY in 3.14; do
     TAG="${DOCKER_IMAGE}:py${PY}"
     echo -e "${YELLOW}▶ Building image Python ${PY}${NC}"
     docker build -q -f Dockerfile.dev --build-arg PYTHON_VERSION="$PY" -t "$TAG" . > /dev/null
-    if [ "$PY" = "3.13" ]; then
+    if [ "$PY" = "3.14" ]; then
         echo -e "${YELLOW}▶ Lint, format, types, dead code${NC}"
         docker run --rm "$TAG" make lint format-check typecheck dead-code
     fi
