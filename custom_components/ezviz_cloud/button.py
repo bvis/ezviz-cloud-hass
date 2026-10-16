@@ -8,6 +8,7 @@ own through the recorded signal, and retention applies.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from homeassistant.components.button import ButtonEntity
@@ -52,23 +53,26 @@ class EzvizCloudCapture(EzvizCloudEntity, ButtonEntity):
         super().__init__(data, camera, "capture")
         self._channel = camera.channel
         self._entry = entry
+        self._capturing = asyncio.Lock()
 
     async def async_press(self) -> None:
         """Wake the camera, grab a keyframe and save it as a photo."""
-        token = await self._data.manager.async_get_token()
+        # A doorbell can fire twice in a row; one stream per camera is enough.
+        if self._capturing.locked():
+            _LOGGER.debug("Capture of %s already running, press ignored", self._serial)
+            return
+        async with self._capturing:
+            await self._capture()
+
+    async def _capture(self) -> None:
         code = self._entry.options.get(CONF_CODES, {}).get(self._serial)
-        session = async_get_clientsession(self.hass)
+        manager = self._data.manager
         try:
-            ps = await async_capture_ps(
-                session,
-                self._data.manager.api.domain,
-                token.token,
-                self._serial,
-                self._channel,
-                code,
-            )
-            annexb = await self.hass.async_add_executor_job(decrypt_and_demux, ps, code)
-            jpeg = await async_annexb_to_jpeg(annexb, _ffmpeg_binary(self.hass))
+            token = await manager.async_get_token()
+            url = await manager.api.async_live_url(token.token, self._serial, self._channel, code)
+            ps = await async_capture_ps(async_get_clientsession(self.hass), url)
+            annexb, codec = await self.hass.async_add_executor_job(decrypt_and_demux, ps, code)
+            jpeg = await async_annexb_to_jpeg(annexb, codec, _ffmpeg_binary(self.hass))
         except EzvizCloudError as err:
             raise HomeAssistantError(f"Could not capture a photo of {self._serial}: {err}") from err
 

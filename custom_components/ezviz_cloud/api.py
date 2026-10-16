@@ -1,4 +1,4 @@
-"""Minimal client for the EZVIZ Open Platform: access tokens and the camera list."""
+"""Minimal client for the EZVIZ Open Platform: access tokens, the camera list, live URLs."""
 
 from __future__ import annotations
 
@@ -101,3 +101,23 @@ class EzvizCloudApi:
             ]
             if len(page) < 50 or len(cameras) >= int((body.get("page") or {}).get("total") or 0):
                 return cameras
+
+    async def async_live_url(
+        self, access_token: str, serial: str, channel: int, code: str | None
+    ) -> str:
+        """Return a camera's live WebSocket URL, with its session token appended."""
+        ezopen = f"ezopen://{code + '@' if code else ''}open.ezviz.com/{serial}/{channel}.live"
+        body = await self._post(
+            "/api/lapp/live/url/ezopen",
+            {
+                "accessToken": access_token,
+                "ezopen": ezopen,
+                "isFlv": "false",
+                "isHttp": "false",
+                "userAgent": "HomeAssistant",
+            },
+        )
+        data = body.get("data") or {}
+        if str(body.get("code")) != "200" or not data.get("url"):
+            raise EzvizCloudError(f"Live URL request failed: {body.get('code')} {body.get('msg')}")
+        return f"{data['url']}&ssn={data['token']}&auth=1&biz=4&cln=100"

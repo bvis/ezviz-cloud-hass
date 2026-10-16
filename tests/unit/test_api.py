@@ -97,3 +97,25 @@ async def test_camera_list_error_code_raises() -> None:
     api, _ = _api({"code": "10002", "msg": "accessToken expired"})
     with pytest.raises(EzvizCloudError):
         await api.async_get_cameras("at.x")
+
+
+async def test_live_url_appends_the_session_token() -> None:
+    api, session = _api({"code": "200", "data": {"url": "wss://vtm/live?dev=BK1", "token": "t"}})
+    url = await api.async_live_url("at.x", "BK1", 1, "CODE")
+    assert url == "wss://vtm/live?dev=BK1&ssn=t&auth=1&biz=4&cln=100"
+    assert session.post.call_args.args[0].endswith("/api/lapp/live/url/ezopen")
+    assert (
+        session.post.call_args.kwargs["data"]["ezopen"] == "ezopen://CODE@open.ezviz.com/BK1/1.live"
+    )
+
+
+async def test_live_url_without_code() -> None:
+    api, session = _api({"code": "200", "data": {"url": "wss://vtm/live?x", "token": "t"}})
+    await api.async_live_url("at.x", "BK1", 1, None)
+    assert session.post.call_args.kwargs["data"]["ezopen"] == "ezopen://open.ezviz.com/BK1/1.live"
+
+
+async def test_live_url_reports_platform_error() -> None:
+    api, _ = _api({"code": "60019", "msg": "nope"})
+    with pytest.raises(EzvizCloudError, match="60019"):
+        await api.async_live_url("at.x", "BK1", 1, "CODE")
