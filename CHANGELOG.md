@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-10-16
+
+### Fixed
+- *Capture photo* now works with H.264 cameras: the codec is read from the stream instead of assuming H.265.
+- A capture can no longer hang: ffmpeg is stopped after 15 seconds and the press reports an error.
+- A capture whose data ended mid-header failed with an unclear error; it now uses the frames it already has.
+- A failed token request during a capture shows a normal error message.
+- Pressing *Capture photo* again while a capture of the same camera is running is ignored instead of opening a second stream. **Requests to EZVIZ:** unchanged per capture; the ignored press sends none.
+
 ## [0.6.0] - 2026-10-16
 
 ### Added
