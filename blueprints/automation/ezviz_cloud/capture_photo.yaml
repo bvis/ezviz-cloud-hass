@@ -1,0 +1,88 @@
+blueprint:
+  name: EZVIZ Cloud - capture a photo when something happens
+  description: >-
+    When an entity changes (a doorbell relay, a button, a contact sensor...),
+    press an EZVIZ Cloud camera's *Capture photo* button. The photo is saved to
+    *Media → My media → ezviz_cloud* and shown by the camera's *Last photo*
+    entity. Optionally, send it to a phone with the Home Assistant app.
+  domain: automation
+  source_url: https://github.com/bvis/ezviz-cloud-hass/blob/main/blueprints/automation/ezviz_cloud/capture_photo.yaml
+  homeassistant:
+    min_version: 2026.10.0
+  input:
+    trigger_entity:
+      name: Trigger
+      description: The entity that starts the capture, e.g. the doorbell relay.
+      selector:
+        entity: {}
+    trigger_state:
+      name: Trigger state
+      description: >-
+        Capture when the trigger changes to this state. Leave it empty to
+        capture on any change, which is what an event entity needs.
+      default: "on"
+      selector:
+        text: {}
+    capture_button:
+      name: Capture photo button
+      selector:
+        entity:
+          filter:
+            - integration: ezviz_cloud
+              domain: button
+    notify_action:
+      name: Notify action (optional)
+      description: >-
+        A Home Assistant app notify action, e.g. notify.mobile_app_my_phone.
+        Leave it empty to only save the photo.
+      default: ""
+      selector:
+        text: {}
+    photo_camera:
+      name: Last photo camera (optional)
+      description: The same camera's *Last photo* entity, attached to the notification.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: ezviz_cloud
+              domain: camera
+    notify_message:
+      name: Notification text
+      default: Someone is at the door
+      selector:
+        text: {}
+
+# A doorbell can ring several times in a row; one photo per ring burst is enough.
+mode: single
+max_exceeded: silent
+
+variables:
+  trigger_state: !input trigger_state
+  notify_action: !input notify_action
+  photo_camera: !input photo_camera
+  notify_message: !input notify_message
+
+triggers:
+  - trigger: state
+    entity_id: !input trigger_entity
+    not_from: [unavailable, unknown]
+    not_to: [unavailable, unknown]
+
+conditions:
+  - condition: template
+    value_template: "{{ trigger_state == '' or trigger.to_state.state == trigger_state }}"
+
+actions:
+  # Waits until the photo is saved (about 15-20 s while the camera wakes up).
+  - action: button.press
+    target:
+      entity_id: !input capture_button
+  - if:
+      - condition: template
+        value_template: "{{ notify_action != '' }}"
+    then:
+      - action: "{{ notify_action }}"
+        data:
+          message: "{{ notify_message }}"
+          data: "{{ {'image': '/api/camera_proxy/' ~ photo_camera} if photo_camera else {} }}"

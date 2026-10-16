@@ -21,7 +21,7 @@ The built-in EZVIZ integration plays video over local RTSP, so battery devices (
 - **Saves battery**: the stream stops after 60 seconds (configurable), when you press *Stop*, or as soon as you leave the view.
 - **In your language**: English, Spanish, Catalan, French, German, Italian, Portuguese (Portugal and Brazil) and Dutch, following each Home Assistant user's language.
 - **Recordings** (optional): set a camera's *Mode* to *Record* and every live view opened from the card is saved to Home Assistant's media folder, as a 720p video plus a photo, and deleted after the retention you choose. Browse them in *Media → My media → ezviz_cloud*.
-- **Capture a photo on demand**, without a browser open: each camera has a *Capture photo* button you can press from an automation (a doorbell relay, for example). It opens the live stream, keeps the first frame and saves it as the camera's last photo.
+- **Capture a photo on demand**, without a browser open: each camera has a *Capture photo* button you can press from an automation (a doorbell relay, for example). It opens the live stream, keeps the first frame and saves it as the camera's last photo. A ready-made [blueprint](#6-capture-a-photo-from-an-automation-optional) does the wiring and can send the photo to your phone.
 - **Access token handled for you.** The token lives 7 days; the integration renews it when it's needed and keeps it out of entity states and the recorder.
 
 ## Supported devices
@@ -30,7 +30,7 @@ Any camera the EZVIZ Open Platform can play should work. Tested so far:
 
 | Model | Type | Result |
 |---|---|---|
-| HP2 (`CS-HP2-R100-6E2WB-GR`) | Battery smart peephole, no RTSP | Live view and recordings work, wakes from sleep, encryption on |
+| HP2 (`CS-HP2-R100-6E2WB-GR`) | Battery smart peephole, no RTSP, H.265 | Live view, recordings and *Capture photo* work, wakes from sleep, encryption on |
 
 If you try another model, please open an issue with the result, good or bad, so this table can grow.
 
@@ -103,9 +103,9 @@ max_seconds: 60          # optional, default 60
 
 ### 5. Recordings (optional)
 
-Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds, together with a photo of its first frame. Files go to `media/ezviz_cloud/<serial>/`, named after the start time; the video is MP4 or WebM depending on the browser. The *Last recording* sensor's `video` and `photo` attributes hold their `media-source://` addresses, handy for notifications.
+Each camera is a device with a *Mode* select (*View* or *Record*), a *Capture photo* button, a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds, together with a photo of its first frame. Files go to `media/ezviz_cloud/<serial>/`, named after the start time; the video is MP4 or WebM depending on the browser. The *Last recording* sensor's `video` and `photo` attributes hold their `media-source://` addresses, handy for notifications.
 
-- Only live views opened from the card are recorded. Waking the camera with its button or from the EZVIZ app isn't.
+- Only live views opened from the card are recorded. Watching from the EZVIZ app isn't, and *Capture photo* saves a photo, not a video.
 - During the live view, *● Record* / *■ Stop recording* start or end a recording on the spot, whatever the mode: switch to recording when you see something, or stop it without closing the stream.
 - If two browsers open the same camera, only the first one records.
 - *Stop* and leaving the view keep the whole recording. Closing the tab keeps what was uploaded so far, which can miss the last few seconds.
@@ -114,13 +114,49 @@ Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo
 
 **Requests to EZVIZ:** none added: the video and the photo come from the stream the browser is already playing.
 
+### 6. Capture a photo from an automation (optional)
+
+The *Capture photo* button takes a photo with no browser open, so it works from automations. Pressing it wakes the camera, which takes about 15 to 20 seconds, and saves the photo next to the recordings. The *Last photo* camera and the *Last recording* sensor update right away (`video` is empty for a capture), and the same retention applies.
+
+Try it from the camera's device page (Settings → Devices & services → EZVIZ Cloud → your camera → *Capture photo*), or from Developer tools → Actions with `button.press`.
+
+To capture on a doorbell ring, import the blueprint:
+
+[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fbvis%2Fezviz-cloud-hass%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fezviz_cloud%2Fcapture_photo.yaml)
+
+Then create an automation from it and pick:
+
+- **Trigger**: the entity that should start the capture, such as the doorbell relay's binary sensor, and the state to react to (`on` by default; leave it empty for an event entity).
+- **Capture photo button** of the camera.
+- Optionally a **notify action** from the Home Assistant app (`notify.mobile_app_<phone>`) and the camera's **Last photo** entity: the photo arrives with the notification.
+
+Rings while a capture is running are ignored, so a long press makes one photo. If you'd rather write the automation yourself:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.doorbell
+    to: "on"
+actions:
+  - action: button.press          # returns once the photo is saved
+    target:
+      entity_id: button.front_door_capture_photo
+  - action: notify.mobile_app_my_phone
+    data:
+      message: Someone is at the door
+      data:
+        image: /api/camera_proxy/camera.front_door_last_photo
+```
+
+The button only makes stills. For video, use *Record* mode or *● Record* on the card, which needs a browser showing it.
+
 ## How it works
 
 1. When you press *Watch live*, the card asks the integration for an Open Platform access token and the camera's stored verification code over Home Assistant's authenticated websocket.
 2. The card loads EZVIZ's web player ([ezuikit-js](https://www.npmjs.com/package/ezuikit-js), ISC license) and opens an `ezopen://` live address with your verification code.
 3. The EZVIZ cloud wakes the camera and relays the stream to your browser, where it is decrypted and decoded (H.265 and H.264).
 
-Video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser showing the card. That's why the `camera` entity only shows the photo of the last recording. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
+Video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser showing the card. That's why the `camera` entity only shows the last photo, from a recording or a capture. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
 
 The *Capture photo* button is the exception: it opens the stream inside Home Assistant, decrypts its first frame with [pyezvizapi](https://pypi.org/project/pyezvizapi/) and decodes it with ffmpeg, so a photo can be taken from an automation without a browser. Only that keyframe is used, so it is a still, not a video.
 
@@ -135,6 +171,8 @@ The *Capture photo* button is the exception: it opens the stream inside Home Ass
 | The card shows an error after "Waking camera…" | The camera didn't answer the cloud in time: check it's online in the EZVIZ app and try again. A wrong or missing verification code also fails here; check it under Configure. |
 | The card shows "Couldn't save the recording" | Another browser is already recording that camera, this browser can't record the player's video, or Home Assistant couldn't write the file (check the log). |
 | The card isn't in the card picker | Hard-refresh the browser (the card is loaded once per page load). |
+| *Capture photo* fails with "No video received; the camera may be asleep" | The camera didn't answer within 20 seconds. Check it's online in the EZVIZ app and press again. |
+| *Capture photo* fails with "Could not decode a keyframe" | Usually a wrong verification code: check it under Configure. If the code is right, please open an issue with the camera model. |
 
 ## Support
 

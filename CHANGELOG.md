@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Blueprint to capture a photo when something happens**, such as a doorbell relay, with an optional phone notification carrying the photo. Import it from the README. **Requests to EZVIZ:** the same as pressing *Capture photo*.
+
+### Changed
+- The README explains how to use *Capture photo*, where its photos end up and what to check when a capture fails.
+
 ## [0.6.1] - 2026-10-16
 
 ### Fixed

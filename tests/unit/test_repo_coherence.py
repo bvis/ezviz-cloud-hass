@@ -73,3 +73,40 @@ def test_card_uses_exactly_its_keys() -> None:
     used |= set(re.findall(r'_showProgress\(\d+, "(\w+)"', CARD))
     used |= set(re.findall(r'^\s+\[/.+/i, "(\w+)"\],$', CARD, re.M))
     assert used == set(CARD_STRINGS["en"])
+
+
+async def test_capture_blueprint_is_a_valid_automation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from homeassistant import core
+    from homeassistant.components.automation.config import (
+        AUTOMATION_BLUEPRINT_SCHEMA,
+        PLATFORM_SCHEMA,
+    )
+    from homeassistant.components.blueprint.models import Blueprint, BlueprintInputs
+    from homeassistant.util.yaml import load_yaml_dict
+
+    path = ROOT / "blueprints/automation/ezviz_cloud/capture_photo.yaml"
+    blueprint = Blueprint(
+        load_yaml_dict(str(path)),
+        expected_domain="automation",
+        schema=AUTOMATION_BLUEPRINT_SCHEMA,
+    )
+    instance = BlueprintInputs(
+        blueprint,
+        {
+            "use_blueprint": {
+                "path": "capture_photo.yaml",
+                "input": {
+                    "trigger_entity": "binary_sensor.doorbell",
+                    "capture_button": "button.door_capture_photo",
+                },
+            }
+        },
+    )
+    # Template checks need a running hass; a bare instance is enough.
+    monkeypatch.setattr(core._hass, "hass", core.HomeAssistant(str(tmp_path)))
+    substituted = instance.async_substitute()
+    assert substituted["variables"]["trigger_state"] == "on"
+    config = PLATFORM_SCHEMA(substituted)
+    assert config["actions"][0]["target"]["entity_id"] == ["button.door_capture_photo"]
