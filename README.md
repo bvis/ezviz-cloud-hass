@@ -21,6 +21,7 @@ The built-in EZVIZ integration plays video over local RTSP, so battery devices (
 - **Saves battery**: the stream stops after 60 seconds (configurable), when you press *Stop*, or as soon as you leave the view.
 - **In your language**: English, Spanish, Catalan, French, German, Italian, Portuguese (Portugal and Brazil) and Dutch, following each Home Assistant user's language.
 - **Recordings** (optional): set a camera's *Mode* to *Record* and every live view opened from the card is saved to Home Assistant's media folder, as a 720p video plus a photo, and deleted after the retention you choose. Browse them in *Media → My media → ezviz_cloud*.
+- **Capture a photo on demand**, without a browser open: each camera has a *Capture photo* button you can press from an automation (a doorbell relay, for example). It opens the live stream, keeps the first frame and saves it as the camera's last photo.
 - **Access token handled for you.** The token lives 7 days; the integration renews it when it's needed and keeps it out of entity states and the recorder.
 
 ## Supported devices
@@ -121,7 +122,9 @@ Each camera is a device with a *Mode* select (*View* or *Record*), a *Last photo
 
 Video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser showing the card. That's why the `camera` entity only shows the photo of the last recording. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
 
-**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). If that list has a camera the integration has no device for, the account reloads to add it (a token and a camera list request). The live stream itself is opened by the player in the browser.
+The *Capture photo* button is the exception: it opens the stream inside Home Assistant, decrypts its first frame with [pyezvizapi](https://pypi.org/project/pyezvizapi/) and decodes it with ffmpeg, so a photo can be taken from an automation without a browser. Only that keyframe is used, so it is a still, not a video.
+
+**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). If that list has a camera the integration has no device for, the account reloads to add it (a token and a camera list request). The live stream itself is opened by the player in the browser. Each press of *Capture photo* adds one live address request plus the live stream, the same as opening the card once.
 
 ## Troubleshooting
 
