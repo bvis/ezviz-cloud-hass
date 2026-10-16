@@ -21,6 +21,8 @@ dev = [
     # Importing HA's camera platform pulls in the stream and image helpers.
     "numpy",
     "PyTurboJPEG",
+    # Server-side photo capture decrypts the stream with this (manifest requirement).
+    "pyezvizapi>=1.0.5.0",
 ]
 
 [tool.pytest.ini_options]

@@ -44,7 +44,7 @@ from .websocket import async_register_commands
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.CAMERA, Platform.SELECT, Platform.SENSOR]
+PLATFORMS = [Platform.BUTTON, Platform.CAMERA, Platform.SELECT, Platform.SENSOR]
 
 
 @dataclass

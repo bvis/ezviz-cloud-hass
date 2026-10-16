@@ -1,0 +1,9 @@
+{
+  "entity": {
+    "button": {
+      "capture": {
+        "default": "mdi:camera"
+      }
+    }
+  }
+}

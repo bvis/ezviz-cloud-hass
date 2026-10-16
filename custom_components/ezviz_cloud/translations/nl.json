@@ -85,6 +85,11 @@
       "last_recording": {
         "name": "Laatste opname"
       }
+    },
+    "button": {
+      "capture": {
+        "name": "Foto maken"
+      }
     }
   }
 }

@@ -85,6 +85,11 @@
       "last_recording": {
         "name": "Darrer enregistrament"
       }
+    },
+    "button": {
+      "capture": {
+        "name": "Captura foto"
+      }
     }
   }
 }

@@ -85,6 +85,11 @@
       "last_recording": {
         "name": "Dernier enregistrement"
       }
+    },
+    "button": {
+      "capture": {
+        "name": "Capturer une photo"
+      }
     }
   }
 }
