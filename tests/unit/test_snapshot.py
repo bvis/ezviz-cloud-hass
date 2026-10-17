@@ -1,4 +1,4 @@
-"""Server-side photo capture: WebSocket play, PS demux, decode."""
+"""Server-side capture: WebSocket play, skipping the clear start, decrypt, ffmpeg."""
 
 from __future__ import annotations
 
@@ -12,103 +12,145 @@ import pytest
 from custom_components.ezviz_cloud.api import EzvizCloudError
 from custom_components.ezviz_cloud.snapshot import (
     _decrypt,
-    _demux_ps,
-    async_annexb_to_jpeg,
+    _scan,
     async_capture_ps,
-    decrypt_and_demux,
+    async_ps_to_jpeg,
+    async_ps_to_mp4,
+    decrypt_ps,
 )
+
+IMKH = b"IMKH" + b"\x00" * 36
+# 14-byte pack header; the last byte's low 3 bits say "no stuffing follows".
+PACK = b"\x00\x00\x01\xba" + b"\x44\x00\x37\xc6\x84\x01\x00\xf5\xc7\xf8"
 
 
 def _pes(payload: bytes) -> bytes:
     """A minimal video PES packet (stream id 0xE0) with a zero-length header."""
-    header = b"\x80\x00\x00"  # flags, flags, header-data-length = 0
-    body = header + payload
+    body = b"\x80\x00\x00" + payload
     return b"\x00\x00\x01\xe0" + len(body).to_bytes(2, "big") + body
 
 
-def _pack(*pes: bytes) -> bytes:
-    """An MPEG-PS pack: IMKH prefix, pack header, then the PES packets."""
-    # 14-byte pack header; the last byte's low 3 bits say "no stuffing follows".
-    pack_header = b"\x00\x00\x01\xba" + b"\x44\x00\x37\xc6\x84\x01\x00\xf5\xc7\xf8"
-    return b"IMKH" + b"\x00" * 36 + pack_header + b"".join(pes)
+def _psm(stream_type: int = 0x24, other: bytes = b"") -> bytes:
+    """A program stream map listing ``other`` entries, then the video stream (0xE0)."""
+    entries = other + bytes([stream_type, 0xE0]) + b"\x00\x00"
+    body = b"\x80\x01\x00\x00" + len(entries).to_bytes(2, "big") + entries
+    return b"\x00\x00\x01\xbc" + len(body).to_bytes(2, "big") + body
 
 
-def test_demux_strips_imkh_and_concatenates_video_payloads() -> None:
-    annexb = b"\x00\x00\x00\x01\x40\x01payload\x00\x00\x00\x01\x26\x01frame"
-    ps = _pack(_pes(annexb[:14]), _pes(annexb[14:]))
-    assert _demux_ps(ps) == (annexb, "hevc")
+def _gop(frame: bytes, stream_type: int = 0x24) -> bytes:
+    """One group of pictures: a pack with the stream map, then a video packet."""
+    return PACK + _psm(stream_type) + _pes(frame)
 
 
-def test_demux_ignores_non_video_streams() -> None:
-    audio = b"\x00\x00\x01\xc0\x00\x05\x80\x00\x00ab"  # stream id 0xC0
-    ps = _pack(_pes(b"\x00\x00\x00\x01v")) + audio
-    assert _demux_ps(ps)[0] == b"\x00\x00\x00\x01v"
+def test_scan_finds_the_second_group_and_the_codec() -> None:
+    first = _gop(b"clear")
+    assert _scan(first + _gop(b"live")) == (len(first), "hevc")
 
 
-def test_decrypt_and_demux_without_code_skips_decryption() -> None:
-    ps = _pack(_pes(b"\x00\x00\x00\x01v"))
-    assert decrypt_and_demux(ps, None)[0] == b"\x00\x00\x00\x01v"
+@pytest.mark.parametrize(("stream_type", "codec"), [(0x1B, "h264"), (0x24, "hevc"), (0x99, "hevc")])
+def test_scan_reads_the_codec_from_the_stream_map(stream_type: int, codec: str) -> None:
+    audio = b"\x0f\xc0\x00\x02ab"  # an audio entry with 2 bytes of descriptors, listed first
+    ps = PACK + _psm(stream_type, audio) + _pes(b"v")
+    assert _scan(ps) == (None, codec)
 
 
-def test_decrypt_and_demux_with_code_decrypts_first(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_scan_keeps_the_default_when_the_stream_map_lists_no_video() -> None:
+    entries = b"\x0f\xc0\x00\x00"  # audio only
+    body = b"\x80\x01\x00\x00" + len(entries).to_bytes(2, "big") + entries
+    psm = b"\x00\x00\x01\xbc" + len(body).to_bytes(2, "big") + body
+    assert _scan(PACK + psm)[1] == "hevc"
+
+
+def test_scan_stops_at_a_truncated_pack_header_or_garbage() -> None:
+    assert _scan(_gop(b"v") + b"\x00\x00\x01\xba\x44\x00") == (None, "hevc")
+    assert _scan(_gop(b"v") + b"junk" + _gop(b"w")) == (None, "hevc")
+
+
+def test_scan_ignores_start_codes_inside_payloads() -> None:
+    fake_map = b"\x00\x00\x01\xbc\x00\x00"
+    assert _scan(_gop(fake_map) + _pes(b"v")) == (None, "hevc")
+
+
+def test_decrypt_ps_skips_the_clear_group_and_decrypts_the_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
     monkeypatch.setattr(
         "custom_components.ezviz_cloud.snapshot._decrypt",
-        lambda ps, code: calls.append(code) or ps,
+        lambda ps, code: calls.append((ps, code)) or b"decrypted",
     )
-    assert decrypt_and_demux(_pack(_pes(b"\x00\x00\x00\x01v")), "SECRET")[0] == (
-        b"\x00\x00\x00\x01v"
-    )
-    assert calls == ["SECRET"]
+    live = _gop(b"live", 0x1B)
+    assert decrypt_ps(IMKH + _gop(b"clear", 0x1B) + live, "SECRET") == (b"decrypted", "h264")
+    assert calls == [(live, "SECRET")]
 
 
-async def test_annexb_to_jpeg_runs_ffmpeg(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_decrypt_ps_without_code_keeps_everything() -> None:
+    ps = _gop(b"a") + _gop(b"b")
+    assert decrypt_ps(IMKH + ps, None) == (ps, "hevc")
+
+
+def test_decrypt_ps_needs_a_live_group() -> None:
+    with pytest.raises(EzvizCloudError, match="first live keyframe"):
+        decrypt_ps(IMKH + _gop(b"clear"), "SECRET")
+
+
+def _ffmpeg(monkeypatch: pytest.MonkeyPatch, **communicate: object) -> dict:
     proc = MagicMock()
-    proc.communicate = AsyncMock(return_value=(b"\xff\xd8the-jpeg", b""))
-    created = {}
+    proc.communicate = AsyncMock(**communicate)
+    proc.wait = AsyncMock()
+    created: dict = {"proc": proc}
 
     async def fake_exec(*args, **_kwargs):  # type: ignore[no-untyped-def]
         created["args"] = args
         return proc
 
     monkeypatch.setattr("asyncio.create_subprocess_exec", fake_exec)
-    jpeg = await async_annexb_to_jpeg(b"\x00\x00\x00\x01v", "hevc", "/usr/bin/ffmpeg")
-    assert jpeg == b"\xff\xd8the-jpeg"
-    assert created["args"][0] == "/usr/bin/ffmpeg"
-    assert proc.communicate.await_args.args == (b"\x00\x00\x00\x01v",)
+    return created
 
 
-async def test_annexb_to_jpeg_raises_when_ffmpeg_decodes_nothing(
+async def test_ps_to_jpeg_runs_ffmpeg_on_the_program_stream(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    proc = MagicMock()
-    proc.communicate = AsyncMock(return_value=(b"", b"Invalid data found"))
+    created = _ffmpeg(monkeypatch, return_value=(b"\xff\xd8the-jpeg", b""))
+    assert await async_ps_to_jpeg(b"ps", "/usr/bin/ffmpeg") == b"\xff\xd8the-jpeg"
+    args = created["args"]
+    assert args[0] == "/usr/bin/ffmpeg"
+    assert args[args.index("-f") + 1] == "mpeg"
+    assert created["proc"].communicate.await_args.args == (b"ps",)
 
-    async def fake_exec(*_args, **_kwargs):  # type: ignore[no-untyped-def]
-        return proc
 
-    monkeypatch.setattr("asyncio.create_subprocess_exec", fake_exec)
+async def test_ps_to_jpeg_raises_when_ffmpeg_decodes_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ffmpeg(monkeypatch, return_value=(b"", b"Invalid data found"))
     with pytest.raises(EzvizCloudError, match="Invalid data found"):
-        await async_annexb_to_jpeg(b"bad", "hevc", "/usr/bin/ffmpeg")
+        await async_ps_to_jpeg(b"bad", "/usr/bin/ffmpeg")
 
 
-async def test_annexb_to_jpeg_kills_a_hung_ffmpeg(monkeypatch: pytest.MonkeyPatch) -> None:
-    proc = MagicMock()
-    proc.communicate = AsyncMock(side_effect=TimeoutError)
-    proc.wait = AsyncMock()
+@pytest.mark.parametrize(("codec", "tagged"), [("hevc", True), ("h264", False)])
+async def test_ps_to_mp4_copies_the_video(
+    monkeypatch: pytest.MonkeyPatch, codec: str, tagged: bool
+) -> None:
+    created = _ffmpeg(monkeypatch, return_value=(b"mp4", b""))
+    assert await async_ps_to_mp4(b"ps", codec, "/usr/bin/ffmpeg") == b"mp4"
+    args = created["args"]
+    assert args[args.index("-c") + 1] == "copy"
+    assert ("hvc1" in args) is tagged
 
-    async def fake_exec(*_args, **_kwargs):  # type: ignore[no-untyped-def]
-        return proc
 
-    monkeypatch.setattr("asyncio.create_subprocess_exec", fake_exec)
+async def test_ps_to_mp4_raises_when_ffmpeg_writes_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ffmpeg(monkeypatch, return_value=(b"", b""))
+    with pytest.raises(EzvizCloudError, match="no video"):
+        await async_ps_to_mp4(b"bad", "hevc", "/usr/bin/ffmpeg")
+
+
+async def test_ffmpeg_is_killed_when_it_hangs(monkeypatch: pytest.MonkeyPatch) -> None:
+    created = _ffmpeg(monkeypatch, side_effect=TimeoutError)
     with pytest.raises(EzvizCloudError, match="in time"):
-        await async_annexb_to_jpeg(b"\x00\x00\x00\x01v", "hevc", "/usr/bin/ffmpeg")
-    proc.kill.assert_called_once()
-
-
-def test_demux_stops_at_a_truncated_pack_header() -> None:
-    ps = _pack(_pes(b"\x00\x00\x00\x01v")) + b"\x00\x00\x01\xba\x44\x00"
-    assert _demux_ps(ps)[0] == b"\x00\x00\x00\x01v"
+        await async_ps_to_jpeg(b"ps", "/usr/bin/ffmpeg")
+    created["proc"].kill.assert_called_once()
 
 
 def _msg(kind: aiohttp.WSMsgType, data: object) -> aiohttp.WSMessage:
@@ -228,29 +270,3 @@ def test_decrypt_uses_pyezvizapi(monkeypatch: pytest.MonkeyPatch) -> None:
         "pyezvizapi.cloud_stream.decrypt_hikvision_ps_video", lambda ps, code: ps + code.encode()
     )
     assert _decrypt(b"ps-", "KEY") == b"ps-KEY"
-
-
-def _psm(stream_type: int, other: bytes = b"") -> bytes:
-    """A program stream map listing ``other`` entries, then the video stream (0xE0)."""
-    entries = other + bytes([stream_type, 0xE0]) + b"\x00\x00"
-    body = b"\x80\x01\x00\x00" + len(entries).to_bytes(2, "big") + entries
-    return b"\x00\x00\x01\xbc" + len(body).to_bytes(2, "big") + body
-
-
-@pytest.mark.parametrize(("stream_type", "codec"), [(0x1B, "h264"), (0x24, "hevc"), (0x99, "hevc")])
-def test_demux_reads_the_codec_from_the_stream_map(stream_type: int, codec: str) -> None:
-    audio = b"\x0f\xc0\x00\x02ab"  # an audio entry with 2 bytes of descriptors, listed first
-    ps = _pack(_pes(b"\x00\x00\x00\x01v")) + _psm(stream_type, audio)
-    assert _demux_ps(ps) == (b"\x00\x00\x00\x01v", codec)
-
-
-def test_demux_resyncs_past_garbage() -> None:
-    ps = b"junk" + _pes(b"\x00\x00\x00\x01v")[0:] + b"trailing-junk-no-start-code"
-    assert _demux_ps(ps)[0] == b"\x00\x00\x00\x01v"
-
-
-def test_demux_keeps_the_default_when_the_stream_map_lists_no_video() -> None:
-    entries = b"\x0f\xc0\x00\x00"  # audio only
-    body = b"\x80\x01\x00\x00" + len(entries).to_bytes(2, "big") + entries
-    psm = b"\x00\x00\x01\xbc" + len(body).to_bytes(2, "big") + body
-    assert _demux_ps(_pack(_pes(b"\x00\x00\x00\x01v")) + psm)[1] == "hevc"

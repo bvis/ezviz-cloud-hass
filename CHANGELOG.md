@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Record a clip on demand, server-side.** Each camera now has a *Record clip* button next to *Capture photo*: it keeps the live stream open for 15 seconds and saves a video of about 12 seconds plus its photo, with no browser open. The video is copied into an MP4 without re-encoding (H.265 plays in Safari, Chrome and Edge). The capture blueprint accepts either button. **Requests to EZVIZ:** one live address request plus a 15-second live stream per press, the same as opening the card once.
+
+### Fixed
+- *Capture photo* could save an old image: the first couple of seconds of the stream are a picture without the camera's clock, and that was the one kept. Photos now come from the first live frame. **Requests to EZVIZ:** unchanged; the stream stays open 7 seconds instead of 4.
+
 ## [0.6.2] - 2026-10-17
 
 ### Added

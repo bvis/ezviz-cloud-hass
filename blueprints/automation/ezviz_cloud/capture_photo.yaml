@@ -2,9 +2,10 @@ blueprint:
   name: EZVIZ Cloud - capture a photo when something happens
   description: >-
     When an entity changes (a doorbell relay, a button, a contact sensor...),
-    press an EZVIZ Cloud camera's *Capture photo* button. The photo is saved to
-    *Media → My media → ezviz_cloud* and shown by the camera's *Last photo*
-    entity. Optionally, send it to a phone with the Home Assistant app.
+    press an EZVIZ Cloud camera's *Capture photo* or *Record clip* button. The
+    photo (and the clip) is saved to *Media → My media → ezviz_cloud* and the
+    photo is shown by the camera's *Last photo* entity. Optionally, send it to a
+    phone with the Home Assistant app.
   domain: automation
   source_url: https://github.com/bvis/ezviz-cloud-hass/blob/main/blueprints/automation/ezviz_cloud/capture_photo.yaml
   homeassistant:
@@ -24,7 +25,8 @@ blueprint:
       selector:
         text: {}
     capture_button:
-      name: Capture photo button
+      name: Capture button
+      description: The camera's *Capture photo* or *Record clip* button.
       selector:
         entity:
           filter:
@@ -74,7 +76,8 @@ conditions:
     value_template: "{{ trigger_state == '' or trigger.to_state.state == trigger_state }}"
 
 actions:
-  # Waits until the photo is saved (about 15-20 s while the camera wakes up).
+  # Waits until the capture is saved: about 15-20 s for a photo while the camera
+  # wakes up, about 30 s for a clip.
   - action: button.press
     target:
       entity_id: !input capture_button

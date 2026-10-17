@@ -3,6 +3,9 @@
     "button": {
       "capture": {
         "default": "mdi:camera"
+      },
+      "record": {
+        "default": "mdi:video"
       }
     }
   }

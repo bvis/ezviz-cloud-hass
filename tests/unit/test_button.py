@@ -1,4 +1,4 @@
-"""The per-camera capture button: wiring, storage and error handling."""
+"""The per-camera photo and clip buttons: wiring, storage and error handling."""
 
 from __future__ import annotations
 
@@ -12,7 +12,13 @@ from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.ezviz_cloud import EzvizCloudData
 from custom_components.ezviz_cloud.api import Camera, EzvizCloudError
-from custom_components.ezviz_cloud.button import EzvizCloudCapture, _ffmpeg_binary
+from custom_components.ezviz_cloud.button import (
+    CLIP_SECONDS,
+    EzvizCloudButton,
+    EzvizCloudCapture,
+    EzvizCloudRecordClip,
+    _ffmpeg_binary,
+)
 from custom_components.ezviz_cloud.button import async_setup_entry as setup_button
 from custom_components.ezviz_cloud.const import CONF_CODES, DATA_RECORDER
 from custom_components.ezviz_cloud.recording import RecordingStore
@@ -39,21 +45,27 @@ def _hass(tmp_path: Path) -> MagicMock:
     return hass
 
 
-def _entity(hass: MagicMock, code: str | None) -> EzvizCloudCapture:
+def _entity(
+    hass: MagicMock,
+    code: str | None,
+    cls: type[EzvizCloudButton] = EzvizCloudCapture,
+    lock: asyncio.Lock | None = None,
+) -> EzvizCloudButton:
     options = {CONF_CODES: {"BK1": code}} if code is not None else {}
     entry = MagicMock(runtime_data=_data(), options=options)
-    entity = EzvizCloudCapture(entry.runtime_data, CAM, entry)
+    entity = cls(entry.runtime_data, CAM, entry, lock or asyncio.Lock())
     entity.hass = hass
     return entity
 
 
-async def test_setup_adds_one_button_per_camera() -> None:
+async def test_setup_adds_a_photo_and_a_clip_button_per_camera() -> None:
     entry = MagicMock(runtime_data=_data(), options={})
     add = MagicMock()
     await setup_button(MagicMock(), entry, add)
     (entities,) = add.call_args.args
-    assert [type(e) for e in entities] == [EzvizCloudCapture]
-    assert entities[0].unique_id == "BK1_capture"
+    assert [type(e) for e in entities] == [EzvizCloudCapture, EzvizCloudRecordClip]
+    assert [e.unique_id for e in entities] == ["BK1_capture", "BK1_record"]
+    assert entities[0]._streaming is entities[1]._streaming
 
 
 def _pipeline(capture: AsyncMock | None = None):  # type: ignore[no-untyped-def]
@@ -64,12 +76,16 @@ def _pipeline(capture: AsyncMock | None = None):  # type: ignore[no-untyped-def]
             capture or AsyncMock(return_value=b"ps-bytes"),
         ),
         patch(
-            "custom_components.ezviz_cloud.button.decrypt_and_demux",
-            return_value=(b"annexb", "h264"),
+            "custom_components.ezviz_cloud.button.decrypt_ps",
+            return_value=(b"clear-ps", "hevc"),
         ),
         patch(
-            "custom_components.ezviz_cloud.button.async_annexb_to_jpeg",
+            "custom_components.ezviz_cloud.button.async_ps_to_jpeg",
             AsyncMock(return_value=b"\xff\xd8jpeg"),
+        ),
+        patch(
+            "custom_components.ezviz_cloud.button.async_ps_to_mp4",
+            AsyncMock(return_value=b"mp4-bytes"),
         ),
         patch(
             "custom_components.ezviz_cloud.button._ffmpeg_binary", return_value="/usr/bin/ffmpeg"
@@ -79,13 +95,14 @@ def _pipeline(capture: AsyncMock | None = None):  # type: ignore[no-untyped-def]
     )
 
 
-async def test_press_captures_and_saves_photo(tmp_path: Path) -> None:
+async def test_photo_press_captures_and_saves_photo(tmp_path: Path) -> None:
     entity = _entity(_hass(tmp_path), "SECRET")
-    p_capture, p_demux, p_jpeg, p_bin, p_session, p_dispatch = _pipeline()
+    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline()
     with (
         p_capture as capture,
-        p_demux as demux,
+        p_decrypt as decrypt,
         p_jpeg as to_jpeg,
+        p_mp4 as to_mp4,
         p_bin,
         p_session,
         p_dispatch as dispatch,
@@ -94,25 +111,44 @@ async def test_press_captures_and_saves_photo(tmp_path: Path) -> None:
 
     entity._data.manager.api.async_live_url.assert_awaited_once_with("tok", "BK1", 1, "SECRET")
     assert capture.await_args.args[1] == "wss://vtm/live?dev=BK1"
-    demux.assert_called_once_with(b"ps-bytes", "SECRET")
-    assert to_jpeg.await_args.args[:2] == (b"annexb", "h264")
-    saved = list((tmp_path / "ezviz_cloud" / "BK1").glob("*.jpg"))
-    assert len(saved) == 1
-    assert saved[0].read_bytes() == b"\xff\xd8jpeg"
+    decrypt.assert_called_once_with(b"ps-bytes", "SECRET")
+    assert to_jpeg.await_args.args == (b"clear-ps", "/usr/bin/ffmpeg")
+    to_mp4.assert_not_awaited()
+    folder = tmp_path / "ezviz_cloud" / "BK1"
+    assert [p.read_bytes() for p in folder.iterdir()] == [b"\xff\xd8jpeg"]
     dispatch.assert_called_once()
+
+
+async def test_clip_press_saves_video_and_photo(tmp_path: Path) -> None:
+    entity = _entity(_hass(tmp_path), "SECRET", EzvizCloudRecordClip)
+    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline()
+    with p_capture as capture, p_decrypt, p_jpeg, p_mp4 as to_mp4, p_bin, p_session, p_dispatch:
+        await entity.async_press()
+
+    assert capture.await_args.kwargs["capture_seconds"] == CLIP_SECONDS
+    assert to_mp4.await_args.args == (b"clear-ps", "hevc", "/usr/bin/ffmpeg")
+    folder = tmp_path / "ezviz_cloud" / "BK1"
+    (video,) = folder.glob("*.mp4")
+    (photo,) = folder.glob("*.jpg")
+    assert video.read_bytes() == b"mp4-bytes"
+    assert photo.read_bytes() == b"\xff\xd8jpeg"
+    assert video.stem == photo.stem
+    assert not list(folder.glob("*.part"))
 
 
 async def test_press_without_code_passes_none(tmp_path: Path) -> None:
     entity = _entity(_hass(tmp_path), None)
-    p_capture, p_demux, p_jpeg, p_bin, p_session, p_dispatch = _pipeline()
-    with p_capture, p_demux as demux, p_jpeg, p_bin, p_session, p_dispatch:
+    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline()
+    with p_capture, p_decrypt as decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch:
         await entity.async_press()
     assert entity._data.manager.api.async_live_url.await_args.args[3] is None
-    assert demux.call_args.args[1] is None
+    assert decrypt.call_args.args[1] is None
 
 
-async def test_press_while_capturing_is_ignored(tmp_path: Path) -> None:
-    entity = _entity(_hass(tmp_path), "SECRET")
+async def test_press_while_the_other_button_streams_is_ignored(tmp_path: Path) -> None:
+    lock = asyncio.Lock()
+    photo = _entity(_hass(tmp_path), "SECRET", EzvizCloudCapture, lock)
+    clip = _entity(_hass(tmp_path), "SECRET", EzvizCloudRecordClip, lock)
     release = asyncio.Event()
 
     async def slow_capture(*_args, **_kwargs):  # type: ignore[no-untyped-def]
@@ -120,31 +156,39 @@ async def test_press_while_capturing_is_ignored(tmp_path: Path) -> None:
         return b"ps"
 
     capture = AsyncMock(side_effect=slow_capture)
-    p_capture, p_demux, p_jpeg, p_bin, p_session, p_dispatch = _pipeline(capture)
-    with p_capture, p_demux, p_jpeg, p_bin, p_session, p_dispatch:
-        first = asyncio.create_task(entity.async_press())
+    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline(capture)
+    with p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch:
+        first = asyncio.create_task(clip.async_press())
         await asyncio.sleep(0)
-        await entity.async_press()
+        await photo.async_press()
+        await clip.async_press()
         release.set()
         await first
     assert capture.await_count == 1
 
 
-async def test_press_wraps_capture_errors(tmp_path: Path) -> None:
-    entity = _entity(_hass(tmp_path), "SECRET")
-    p_capture, p_demux, p_jpeg, p_bin, p_session, p_dispatch = _pipeline(
+@pytest.mark.parametrize(
+    ("cls", "what"), [(EzvizCloudCapture, "photo"), (EzvizCloudRecordClip, "clip")]
+)
+async def test_press_wraps_capture_errors(
+    tmp_path: Path, cls: type[EzvizCloudButton], what: str
+) -> None:
+    entity = _entity(_hass(tmp_path), "SECRET", cls)
+    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline(
         AsyncMock(side_effect=EzvizCloudError("asleep"))
     )
     with (
         p_capture,
-        p_demux,
+        p_decrypt,
         p_jpeg,
+        p_mp4,
         p_bin,
         p_session,
-        p_dispatch,
-        pytest.raises(HomeAssistantError, match="asleep"),
+        p_dispatch as dispatch,
+        pytest.raises(HomeAssistantError, match=f"{what} of BK1: asleep"),
     ):
         await entity.async_press()
+    dispatch.assert_not_called()
 
 
 async def test_press_wraps_token_errors(tmp_path: Path) -> None:

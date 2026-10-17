@@ -1,9 +1,9 @@
-"""A per-camera button that captures one photo, server-side, on demand.
+"""Per-camera buttons that capture a photo or a short clip, server-side, on demand.
 
-Meant for automations: wire a doorbell relay to press it and the integration
-wakes the camera, grabs a keyframe and saves it like any other photo, without a
-browser open. The last-photo camera and last-recording sensor refresh on their
-own through the recorded signal, and retention applies.
+Meant for automations: wire a doorbell relay to press one and the integration
+wakes the camera, reads the live stream and saves it like any other recording,
+without a browser open. The last-photo camera and last-recording sensor refresh
+on their own through the recorded signal, and retention applies.
 """
 
 from __future__ import annotations
@@ -23,9 +23,12 @@ from . import EzvizCloudConfigEntry, EzvizCloudData
 from .api import Camera, EzvizCloudError
 from .const import CONF_CODES, DATA_RECORDER, signal_recorded
 from .entity import EzvizCloudEntity
-from .snapshot import async_annexb_to_jpeg, async_capture_ps, decrypt_and_demux
+from .snapshot import async_capture_ps, async_ps_to_jpeg, async_ps_to_mp4, decrypt_ps
 
 _LOGGER = logging.getLogger(__name__)
+
+CLIP_SECONDS = 15  # of stream; the clip is about 3 s shorter (the clear start is skipped)
+_CLIP_MAX_BYTES = 10_000_000
 
 
 def _ffmpeg_binary(hass: HomeAssistant) -> str:
@@ -41,44 +44,99 @@ async def async_setup_entry(
     entry: EzvizCloudConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """One capture button per camera."""
+    """A photo and a clip button per camera, sharing one stream at a time."""
     data = entry.runtime_data
-    async_add_entities([EzvizCloudCapture(data, camera, entry) for camera in data.cameras])
+    entities: list[EzvizCloudButton] = []
+    for camera in data.cameras:
+        lock = asyncio.Lock()
+        entities += [
+            EzvizCloudCapture(data, camera, entry, lock),
+            EzvizCloudRecordClip(data, camera, entry, lock),
+        ]
+    async_add_entities(entities)
 
 
-class EzvizCloudCapture(EzvizCloudEntity, ButtonEntity):
-    """Captures a still from the live stream and stores it as the camera's last photo."""
+class EzvizCloudButton(EzvizCloudEntity, ButtonEntity):
+    """Opens the live stream on press, at most one stream per camera."""
 
-    def __init__(self, data: EzvizCloudData, camera: Camera, entry: EzvizCloudConfigEntry) -> None:
-        super().__init__(data, camera, "capture")
+    _key: str
+    _what: str
+
+    def __init__(
+        self,
+        data: EzvizCloudData,
+        camera: Camera,
+        entry: EzvizCloudConfigEntry,
+        lock: asyncio.Lock,
+    ) -> None:
+        super().__init__(data, camera, self._key)
         self._channel = camera.channel
         self._entry = entry
-        self._capturing = asyncio.Lock()
+        self._streaming = lock
 
     async def async_press(self) -> None:
-        """Wake the camera, grab a keyframe and save it as a photo."""
+        """Wake the camera, read the stream and save what it gives."""
         # A doorbell can fire twice in a row; one stream per camera is enough.
-        if self._capturing.locked():
-            _LOGGER.debug("Capture of %s already running, press ignored", self._serial)
+        if self._streaming.locked():
+            _LOGGER.debug("Stream of %s already open, press ignored", self._serial)
             return
-        async with self._capturing:
-            await self._capture()
+        async with self._streaming:
+            code = self._entry.options.get(CONF_CODES, {}).get(self._serial)
+            manager = self._data.manager
+            try:
+                token = await manager.async_get_token()
+                url = await manager.api.async_live_url(
+                    token.token, self._serial, self._channel, code
+                )
+                await self._save(url, code)
+            except EzvizCloudError as err:
+                raise HomeAssistantError(
+                    f"Could not capture a {self._what} of {self._serial}: {err}"
+                ) from err
+            async_dispatcher_send(self.hass, signal_recorded(self._serial))
+            _LOGGER.debug("Captured a %s of %s", self._what, self._serial)
 
-    async def _capture(self) -> None:
-        code = self._entry.options.get(CONF_CODES, {}).get(self._serial)
-        manager = self._data.manager
-        try:
-            token = await manager.async_get_token()
-            url = await manager.api.async_live_url(token.token, self._serial, self._channel, code)
-            ps = await async_capture_ps(async_get_clientsession(self.hass), url)
-            annexb, codec = await self.hass.async_add_executor_job(decrypt_and_demux, ps, code)
-            jpeg = await async_annexb_to_jpeg(annexb, codec, _ffmpeg_binary(self.hass))
-        except EzvizCloudError as err:
-            raise HomeAssistantError(f"Could not capture a photo of {self._serial}: {err}") from err
+    async def _save(self, url: str, code: str | None) -> None:
+        """Read the stream at ``url`` and store what this button produces."""
 
+
+class EzvizCloudCapture(EzvizCloudButton):
+    """Captures a still from the live stream and stores it as the camera's last photo."""
+
+    _key = "capture"
+    _what = "photo"
+
+    async def _save(self, url: str, code: str | None) -> None:
+        ps = await async_capture_ps(async_get_clientsession(self.hass), url)
+        clear, _codec = await self.hass.async_add_executor_job(decrypt_ps, ps, code)
+        jpeg = await async_ps_to_jpeg(clear, _ffmpeg_binary(self.hass))
+        store = self.hass.data[DATA_RECORDER].store
+        path = store.photo_path(self._serial, store.stem_for(dt_util.now()))
+        await self.hass.async_add_executor_job(store.save_photo, path, jpeg)
+
+
+class EzvizCloudRecordClip(EzvizCloudButton):
+    """Records a short clip of the live stream, plus its first frame as the photo."""
+
+    _key = "record"
+    _what = "clip"
+
+    async def _save(self, url: str, code: str | None) -> None:
+        ps = await async_capture_ps(
+            async_get_clientsession(self.hass),
+            url,
+            capture_seconds=CLIP_SECONDS,
+            max_bytes=_CLIP_MAX_BYTES,
+        )
+        clear, codec = await self.hass.async_add_executor_job(decrypt_ps, ps, code)
+        ffmpeg = _ffmpeg_binary(self.hass)
+        mp4 = await async_ps_to_mp4(clear, codec, ffmpeg)
+        jpeg = await async_ps_to_jpeg(clear, ffmpeg)
         store = self.hass.data[DATA_RECORDER].store
         stem = store.stem_for(dt_util.now())
-        path = store.photo_path(self._serial, stem)
-        await self.hass.async_add_executor_job(store.save_photo, path, jpeg)
-        async_dispatcher_send(self.hass, signal_recorded(self._serial))
-        _LOGGER.debug("Captured a photo of %s", self._serial)
+        part = store.video_part(self._serial, stem, "mp4")
+        await self.hass.async_add_executor_job(store.append, part, mp4)
+        await self.hass.async_add_executor_job(store.finalize, part)
+        await self.hass.async_add_executor_job(
+            store.save_photo, store.photo_path(self._serial, stem), jpeg
+        )

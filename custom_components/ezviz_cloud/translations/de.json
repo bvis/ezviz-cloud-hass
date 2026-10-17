@@ -89,6 +89,9 @@
     "button": {
       "capture": {
         "name": "Foto aufnehmen"
+      },
+      "record": {
+        "name": "Clip aufnehmen"
       }
     }
   }
