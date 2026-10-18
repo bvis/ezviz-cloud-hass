@@ -245,6 +245,8 @@ The *Capture photo* and *Record clip* buttons are the exception: they open the s
 
 Questions and bug reports: [GitHub issues](https://github.com/bvis/ezviz-cloud-hass/issues). Please never paste your AppSecret, access token or verification code.
 
+This integration is free and open source, and stays that way — every feature is available to everyone. If it's useful to you and you'd like to support the time that goes into maintaining it, you can [buy me a coffee](https://buymeacoffee.com/basiliovera) ☕. Entirely optional and always appreciated.
+
 ## Legal notice
 
 EZVIZ is a trademark of its owner. This project is not affiliated with, endorsed by or supported by EZVIZ. It only uses the documented EZVIZ Open Platform API and web player, with credentials each user creates for their own account.
