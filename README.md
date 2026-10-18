@@ -20,7 +20,7 @@ The built-in EZVIZ integration plays video over local RTSP, so battery devices (
 - **Works with video encryption on.** The verification code from the device label decrypts the stream in the browser.
 - **Saves battery**: the stream stops after 60 seconds (configurable), when you press *Stop*, or as soon as you leave the view.
 - **In your language**: English, Spanish, Catalan, French, German, Italian, Portuguese (Portugal and Brazil) and Dutch, following each Home Assistant user's language.
-- **Recordings** (optional): set a camera's *Mode* to *Record* and every live view opened from the card is saved to Home Assistant's media folder, as a 720p video plus a photo, and deleted after the retention you choose. Browse them in *Media → My media → ezviz_cloud*.
+- **Recordings** (optional): set a camera's *Mode* to *Record* and every live view opened from the card is saved to Home Assistant's media folder, as a 720p video plus a photo, and deleted after the retention you choose. Browse them in *Media → EZVIZ Cloud*, one folder per camera.
 - **Capture a photo or a clip on demand**, without a browser open: each camera has a *Capture photo* and a *Record clip* button you can press from an automation (a doorbell relay, for example). They open the live stream inside Home Assistant and save a photo, or a 12-second video plus its photo, next to the recordings. A ready-made [blueprint](#6-capture-a-photo-or-a-clip-from-an-automation-optional) does the wiring and can send the photo to your phone.
 - **Access token handled for you.** The token lives 7 days; the integration renews it when it's needed and keeps it out of entity states and the recorder.
 
@@ -103,7 +103,7 @@ max_seconds: 60          # optional, default 60
 
 ### 5. Recordings (optional)
 
-Each camera is a device with a *Mode* select (*View*, *Photo* or *Record*), *Capture photo*, *Record clip* and *Capture by mode* buttons, a *Clip length* setting, a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds, together with a photo of its first frame. Files go to `media/ezviz_cloud/<serial>/`, named after the start time; the video is MP4 or WebM depending on the browser. The *Last recording* sensor's `video` and `photo` attributes hold their `media-source://` addresses, handy for notifications.
+Each camera is a device with a *Mode* select (*View*, *Photo* or *Record*), *Capture photo*, *Record clip* and *Capture by mode* buttons, a *Clip length* setting, a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds, together with a photo of its first frame. Files go to `media/ezviz_cloud/<serial>/`, named after the start time; the video is MP4 or WebM depending on the browser. In *Media → EZVIZ Cloud* each camera has a folder with its recordings, newest first: a clip opens as its video with its photo as the thumbnail. The *Last recording* sensor's `video` and `photo` attributes hold their `media-source://` addresses, handy for notifications.
 
 - Only live views opened from the card, and the *Record clip* button, are recorded. Watching from the EZVIZ app isn't.
 - During the live view, *● Record* / *■ Stop recording* start or end a recording on the spot, whatever the mode: switch to recording when you see something, or stop it without closing the stream.

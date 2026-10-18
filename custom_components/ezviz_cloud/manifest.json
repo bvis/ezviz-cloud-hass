@@ -3,7 +3,7 @@
   "name": "EZVIZ Cloud",
   "codeowners": ["@bvis"],
   "config_flow": true,
-  "dependencies": ["ffmpeg", "frontend", "http", "websocket_api"],
+  "dependencies": ["ffmpeg", "frontend", "http", "media_source", "websocket_api"],
   "documentation": "https://github.com/bvis/ezviz-cloud-hass",
   "integration_type": "hub",
   "iot_class": "cloud_polling",

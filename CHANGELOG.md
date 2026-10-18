@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Recordings in the media browser.** *Media* gets an *EZVIZ Cloud* entry with a folder per camera, named like the camera, and its photos and clips newest first; clips show their photo as the thumbnail. The files stay where they were, so *My media → ezviz_cloud* still works. **Requests to EZVIZ:** none; it only reads the saved files.
+
 ## [0.8.0] - 2026-10-18
 
 ### Added
