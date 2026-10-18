@@ -72,8 +72,14 @@
         "name": "Modalità",
         "state": {
           "view": "Visualizza",
+          "photo": "Foto",
           "record": "Registra"
         }
+      }
+    },
+    "number": {
+      "clip_seconds": {
+        "name": "Durata della clip"
       }
     },
     "camera": {
@@ -92,6 +98,9 @@
       },
       "record": {
         "name": "Registra clip"
+      },
+      "capture_by_mode": {
+        "name": "Cattura secondo la modalità"
       }
     }
   }

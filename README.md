@@ -103,22 +103,25 @@ max_seconds: 60          # optional, default 60
 
 ### 5. Recordings (optional)
 
-Each camera is a device with a *Mode* select (*View* or *Record*), *Capture photo* and *Record clip* buttons, a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds, together with a photo of its first frame. Files go to `media/ezviz_cloud/<serial>/`, named after the start time; the video is MP4 or WebM depending on the browser. The *Last recording* sensor's `video` and `photo` attributes hold their `media-source://` addresses, handy for notifications.
+Each camera is a device with a *Mode* select (*View*, *Photo* or *Record*), *Capture photo*, *Record clip* and *Capture by mode* buttons, a *Clip length* setting, a *Last photo* camera and a *Last recording* sensor. In *Record* mode, the card that opens the live view records it in the browser and uploads it to Home Assistant every 2 seconds, together with a photo of its first frame. Files go to `media/ezviz_cloud/<serial>/`, named after the start time; the video is MP4 or WebM depending on the browser. The *Last recording* sensor's `video` and `photo` attributes hold their `media-source://` addresses, handy for notifications.
 
 - Only live views opened from the card, and the *Record clip* button, are recorded. Watching from the EZVIZ app isn't.
 - During the live view, *● Record* / *■ Stop recording* start or end a recording on the spot, whatever the mode: switch to recording when you see something, or stop it without closing the stream.
 - If two browsers open the same camera, only the first one records.
 - *Stop* and leaving the view keep the whole recording. Closing the tab keeps what was uploaded so far, which can miss the last few seconds.
 - **Configure** → **Recordings** sets how many days to keep them (default 10) and the maximum per camera (default 100, 0 = no limit). Older ones are deleted at startup, once a day and after each new recording.
+- *View* and *Photo* don't record the live view; they differ only for the *Capture by mode* button (see below).
 - The mode is a normal entity, so automations can switch it, for example to record only when nobody is home.
 
 **Requests to EZVIZ:** none added: the video and the photo come from the stream the browser is already playing.
 
 ### 6. Capture a photo or a clip from an automation (optional)
 
-The *Capture photo* and *Record clip* buttons work with no browser open, so they work from automations. *Capture photo* wakes the camera, which takes about 15 to 20 seconds, and saves a photo next to the recordings. *Record clip* keeps the stream open for 15 seconds and saves a video of about 12 seconds plus a photo of its first frame, about 30 seconds after the press. The *Last photo* camera and the *Last recording* sensor update right away (`video` is empty for a photo), and the same retention applies.
+The *Capture photo* and *Record clip* buttons work with no browser open, so they work from automations. *Capture photo* wakes the camera, which takes about 15 to 20 seconds, and saves a photo next to the recordings. *Record clip* saves a video of the camera's *Clip length* (10 to 60 seconds, 15 by default) plus a photo of its first frame, about 15 seconds after the clip ends. The *Last photo* camera and the *Last recording* sensor update right away (`video` is empty for a photo), and the same retention applies.
 
 The clip is the camera's own H.265 (or H.264) video, copied into an MP4 without re-encoding, so it costs Home Assistant almost no CPU. Safari, Chrome and Edge play H.265 MP4 on most devices, and the Home Assistant app does too where the phone supports it; Firefox on desktop may not.
+
+*Capture by mode* follows the camera's *Mode*: it does nothing in *View*, presses *Capture photo* in *Photo* and *Record clip* in *Record*. Wire the doorbell to it once, and let another automation switch the mode, for example to *Record* when nobody is home and back to *View* or *Photo* when you return.
 
 Try them from the camera's device page (Settings → Devices & services → EZVIZ Cloud → your camera), or from Developer tools → Actions with `button.press`.
 
@@ -129,8 +132,8 @@ To capture on a doorbell ring, import the blueprint:
 Then create an automation from it and pick:
 
 - **Trigger**: the entity that should start the capture, such as the doorbell relay's binary sensor, and the state to react to (`on` by default; leave it empty for an event entity).
-- **Capture button**: the camera's *Capture photo* or *Record clip*.
-- Optionally a **notify action** from the Home Assistant app (`notify.mobile_app_<phone>`) and the camera's **Last photo** entity: the photo arrives with the notification.
+- **Capture button**: the camera's *Capture by mode*, *Capture photo* or *Record clip*.
+- Optionally a **notify action** from the Home Assistant app (`notify.mobile_app_<phone>`) and the camera's **Last photo** entity: the photo arrives with the notification. When *Capture by mode* saved nothing (*View*), the notification goes without a photo.
 
 Rings while a capture is running are ignored, so a long press makes one photo or clip. The photo and the clip share the camera's stream: pressing one while the other runs is ignored too. If you'd rather write the automation yourself:
 

@@ -1,4 +1,4 @@
-"""Recording mode per camera: view only, or record what the card plays."""
+"""Recording mode per camera: view only, photo on demand, or record."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from . import EzvizCloudConfigEntry, EzvizCloudData
 from .api import Camera
-from .const import MODE_RECORD, MODE_VIEW
+from .const import MODE_PHOTO, MODE_RECORD, MODE_VIEW
 from .entity import EzvizCloudEntity
 
 
@@ -24,9 +24,10 @@ async def async_setup_entry(
 
 
 class EzvizCloudMode(EzvizCloudEntity, SelectEntity, RestoreEntity):
-    """Decides whether the card records the live view."""
+    """Decides whether the card records the live view, and what the
+    capture-by-mode button saves: nothing, a photo or a clip."""
 
-    _attr_options = [MODE_VIEW, MODE_RECORD]
+    _attr_options = [MODE_VIEW, MODE_PHOTO, MODE_RECORD]
 
     def __init__(self, data: EzvizCloudData, camera: Camera) -> None:
         super().__init__(data, camera, "mode")

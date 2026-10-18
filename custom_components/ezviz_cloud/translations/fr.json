@@ -72,8 +72,14 @@
         "name": "Mode",
         "state": {
           "view": "Regarder",
+          "photo": "Photo",
           "record": "Enregistrer"
         }
+      }
+    },
+    "number": {
+      "clip_seconds": {
+        "name": "Durée du clip"
       }
     },
     "camera": {
@@ -92,6 +98,9 @@
       },
       "record": {
         "name": "Enregistrer un clip"
+      },
+      "capture_by_mode": {
+        "name": "Capturer selon le mode"
       }
     }
   }

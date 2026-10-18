@@ -2,10 +2,12 @@ blueprint:
   name: EZVIZ Cloud - capture a photo when something happens
   description: >-
     When an entity changes (a doorbell relay, a button, a contact sensor...),
-    press an EZVIZ Cloud camera's *Capture photo* or *Record clip* button. The
-    photo (and the clip) is saved to *Media → My media → ezviz_cloud* and the
-    photo is shown by the camera's *Last photo* entity. Optionally, send it to a
-    phone with the Home Assistant app.
+    press an EZVIZ Cloud camera's *Capture by mode*, *Capture photo* or *Record
+    clip* button. *Capture by mode* follows the camera's *Mode*: nothing in
+    *View*, a photo in *Photo*, a clip in *Record*, so an automation can switch
+    the mode when nobody is home. The photo (and the clip) is saved to *Media →
+    My media → ezviz_cloud* and the photo is shown by the camera's *Last photo*
+    entity. Optionally, send it to a phone with the Home Assistant app.
   domain: automation
   source_url: https://github.com/bvis/ezviz-cloud-hass/blob/main/blueprints/automation/ezviz_cloud/capture_photo.yaml
   homeassistant:
@@ -26,7 +28,9 @@ blueprint:
         text: {}
     capture_button:
       name: Capture button
-      description: The camera's *Capture photo* or *Record clip* button.
+      description: >-
+        The camera's *Capture by mode*, *Capture photo* or *Record clip*
+        button.
       selector:
         entity:
           filter:
@@ -61,6 +65,7 @@ max_exceeded: silent
 
 variables:
   trigger_state: !input trigger_state
+  capture_button: !input capture_button
   notify_action: !input notify_action
   photo_camera: !input photo_camera
   notify_message: !input notify_message
@@ -77,7 +82,7 @@ conditions:
 
 actions:
   # Waits until the capture is saved: about 15-20 s for a photo while the camera
-  # wakes up, about 30 s for a clip.
+  # wakes up, the clip length plus about 15 s for a clip.
   - action: button.press
     target:
       entity_id: !input capture_button
@@ -88,4 +93,8 @@ actions:
       - action: "{{ notify_action }}"
         data:
           message: "{{ notify_message }}"
-          data: "{{ {'image': '/api/camera_proxy/' ~ photo_camera} if photo_camera else {} }}"
+          # Capture by mode in View saves nothing: don't attach an old photo.
+          data: >-
+            {{ {'image': '/api/camera_proxy/' ~ photo_camera}
+               if photo_camera and state_attr(capture_button, 'last_capture') != 'none'
+               else {} }}

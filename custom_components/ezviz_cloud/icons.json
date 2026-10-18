@@ -6,6 +6,24 @@
       },
       "record": {
         "default": "mdi:video"
+      },
+      "capture_by_mode": {
+        "default": "mdi:doorbell-video"
+      }
+    },
+    "number": {
+      "clip_seconds": {
+        "default": "mdi:timer-outline"
+      }
+    },
+    "select": {
+      "mode": {
+        "default": "mdi:record-rec",
+        "state": {
+          "view": "mdi:eye",
+          "photo": "mdi:camera",
+          "record": "mdi:record-rec"
+        }
       }
     }
   }

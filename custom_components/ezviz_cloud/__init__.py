@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -44,7 +44,7 @@ from .websocket import async_register_commands
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = [Platform.BUTTON, Platform.CAMERA, Platform.SELECT, Platform.SENSOR]
+PLATFORMS = [Platform.BUTTON, Platform.CAMERA, Platform.NUMBER, Platform.SELECT, Platform.SENSOR]
 
 
 @dataclass
@@ -55,6 +55,8 @@ class EzvizCloudData:
     cameras: list[Camera]
     # Recording mode per serial; the select entities own and restore it.
     modes: dict[str, str]
+    # Clip length per serial; the number entities own and restore it.
+    clip_seconds: dict[str, int] = field(default_factory=dict)
 
 
 type EzvizCloudConfigEntry = ConfigEntry[EzvizCloudData]

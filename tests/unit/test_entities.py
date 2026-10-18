@@ -1,4 +1,4 @@
-"""Per-camera entities: mode select, last photo camera, last recording sensor."""
+"""Per-camera entities: mode select, clip length, last photo camera, last recording sensor."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ from custom_components.ezviz_cloud.api import Camera
 from custom_components.ezviz_cloud.camera import EzvizCloudLastPhoto
 from custom_components.ezviz_cloud.camera import async_setup_entry as setup_camera
 from custom_components.ezviz_cloud.const import DATA_RECORDER
+from custom_components.ezviz_cloud.number import EzvizCloudClipLength
+from custom_components.ezviz_cloud.number import async_setup_entry as setup_number
 from custom_components.ezviz_cloud.recording import RecordingStore
 from custom_components.ezviz_cloud.select import EzvizCloudMode
 from custom_components.ezviz_cloud.select import async_setup_entry as setup_select
@@ -43,6 +45,7 @@ async def test_platforms_add_one_entity_per_camera() -> None:
     entry = MagicMock(runtime_data=_data())
     for setup, cls in (
         (setup_select, EzvizCloudMode),
+        (setup_number, EzvizCloudClipLength),
         (setup_camera, EzvizCloudLastPhoto),
         (setup_sensor, EzvizCloudLastRecording),
     ):
@@ -90,6 +93,41 @@ async def test_select_ignores_unknown_restored_state() -> None:
     ):
         await entity.async_added_to_hass()
     assert data.modes["BK1"] == "view"
+
+
+async def test_select_offers_view_photo_and_record() -> None:
+    assert EzvizCloudMode(_data(), CAM).options == ["view", "photo", "record"]
+
+
+async def test_clip_length_defaults_restores_and_changes() -> None:
+    data = _data()
+    entity = EzvizCloudClipLength(data, CAM)
+    assert entity.native_value == 15
+    assert (entity.native_min_value, entity.native_max_value) == (10, 60)
+    entity.hass = MagicMock()
+    entity.async_write_ha_state = MagicMock()  # type: ignore[method-assign]
+    with patch.object(
+        EzvizCloudClipLength,
+        "async_get_last_number_data",
+        AsyncMock(return_value=MagicMock(native_value=42.0)),
+    ):
+        await entity.async_added_to_hass()
+    assert data.clip_seconds["BK1"] == 42
+    await entity.async_set_native_value(30)
+    assert entity.native_value == 30
+    entity.async_write_ha_state.assert_called_once()
+
+
+async def test_clip_length_ignores_missing_or_out_of_range_restore() -> None:
+    for restored in (None, MagicMock(native_value=None), MagicMock(native_value=600.0)):
+        data = _data()
+        entity = EzvizCloudClipLength(data, CAM)
+        entity.hass = MagicMock()
+        with patch.object(
+            EzvizCloudClipLength, "async_get_last_number_data", AsyncMock(return_value=restored)
+        ):
+            await entity.async_added_to_hass()
+        assert data.clip_seconds["BK1"] == 15
 
 
 async def test_camera_serves_latest_photo(tmp_path: Path) -> None:

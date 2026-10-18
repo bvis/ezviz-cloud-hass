@@ -72,8 +72,14 @@
         "name": "Mode",
         "state": {
           "view": "Visualitzar",
+          "photo": "Foto",
           "record": "Gravar"
         }
+      }
+    },
+    "number": {
+      "clip_seconds": {
+        "name": "Durada del clip"
       }
     },
     "camera": {
@@ -92,6 +98,9 @@
       },
       "record": {
         "name": "Gravar clip"
+      },
+      "capture_by_mode": {
+        "name": "Captura segons el mode"
       }
     }
   }

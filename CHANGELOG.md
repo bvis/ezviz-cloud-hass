@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Capture by mode.** The camera's *Mode* gains a *Photo* option, and a new *Capture by mode* button does what the mode says: nothing in *View*, a photo in *Photo*, a clip in *Record*. Wire a doorbell to it once and switch the mode from another automation, for example to *Record* when nobody is home. The blueprint accepts it and skips the photo in the notification when nothing was captured. **Requests to EZVIZ:** none in *View*; otherwise the same as pressing *Capture photo* or *Record clip*.
+- **Clip length per camera**, from 10 to 60 seconds (15 by default), for *Record clip*. **Requests to EZVIZ:** unchanged; the live stream stays open for the clip length plus about 3 seconds.
+
 ## [0.7.0] - 2026-10-17
 
 ### Added

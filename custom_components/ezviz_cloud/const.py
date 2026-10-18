@@ -39,9 +39,16 @@ TOKEN_RENEW_MARGIN: Final = timedelta(days=1)
 CARD_FILENAME: Final = "ezviz-cloud-live-card.js"
 CARD_URL: Final = f"/{DOMAIN}/{CARD_FILENAME}"
 
-# Recording modes, picked per camera with the select entity.
+# Recording modes, picked per camera with the select entity. View and photo
+# don't record the card's live view; the capture-by-mode button follows them.
 MODE_VIEW: Final = "view"
+MODE_PHOTO: Final = "photo"
 MODE_RECORD: Final = "record"
+
+# Length of the clips the record button saves, set per camera.
+CLIP_MIN_SECONDS: Final = 10
+CLIP_MAX_SECONDS: Final = 60
+DEFAULT_CLIP_SECONDS: Final = 15
 
 CONF_RETENTION_DAYS: Final = "retention_days"
 CONF_MAX_PER_CAMERA: Final = "max_per_camera"

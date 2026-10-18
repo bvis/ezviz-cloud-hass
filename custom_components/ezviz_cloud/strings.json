@@ -72,8 +72,14 @@
         "name": "Mode",
         "state": {
           "view": "View",
+          "photo": "Photo",
           "record": "Record"
         }
+      }
+    },
+    "number": {
+      "clip_seconds": {
+        "name": "Clip length"
       }
     },
     "camera": {
@@ -92,6 +98,9 @@
       },
       "record": {
         "name": "Record clip"
+      },
+      "capture_by_mode": {
+        "name": "Capture by mode"
       }
     }
   }

@@ -3,7 +3,9 @@
 Meant for automations: wire a doorbell relay to press one and the integration
 wakes the camera, reads the live stream and saves it like any other recording,
 without a browser open. The last-photo camera and last-recording sensor refresh
-on their own through the recorded signal, and retention applies.
+on their own through the recorded signal, and retention applies. The
+capture-by-mode button picks one of the two from the camera's mode, so an
+automation can wire a doorbell once and switch the mode when nobody is home.
 """
 
 from __future__ import annotations
@@ -21,14 +23,23 @@ from homeassistant.util import dt as dt_util
 
 from . import EzvizCloudConfigEntry, EzvizCloudData
 from .api import Camera, EzvizCloudError
-from .const import CONF_CODES, DATA_RECORDER, signal_recorded
+from .const import (
+    CONF_CODES,
+    DATA_RECORDER,
+    DEFAULT_CLIP_SECONDS,
+    MODE_PHOTO,
+    MODE_RECORD,
+    signal_recorded,
+)
 from .entity import EzvizCloudEntity
 from .snapshot import async_capture_ps, async_ps_to_jpeg, async_ps_to_mp4, decrypt_ps
 
 _LOGGER = logging.getLogger(__name__)
 
-CLIP_SECONDS = 15  # of stream; the clip is about 3 s shorter (the clear start is skipped)
-_CLIP_MAX_BYTES = 10_000_000
+# The clear start of the stream (about 3 s) is skipped, so read that much more.
+_CLEAR_START_SECONDS = 3
+# Caps the read at about twice the card's 1.5 Mbps; 60 s is about 40 MB.
+_CLIP_BYTES_PER_SECOND = 700_000
 
 
 def _ffmpeg_binary(hass: HomeAssistant) -> str:
@@ -44,15 +55,14 @@ async def async_setup_entry(
     entry: EzvizCloudConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """A photo and a clip button per camera, sharing one stream at a time."""
+    """A photo, a clip and a capture-by-mode button per camera, sharing one stream at a time."""
     data = entry.runtime_data
-    entities: list[EzvizCloudButton] = []
+    entities: list[ButtonEntity] = []
     for camera in data.cameras:
         lock = asyncio.Lock()
-        entities += [
-            EzvizCloudCapture(data, camera, entry, lock),
-            EzvizCloudRecordClip(data, camera, entry, lock),
-        ]
+        photo = EzvizCloudCapture(data, camera, entry, lock)
+        clip = EzvizCloudRecordClip(data, camera, entry, lock)
+        entities += [photo, clip, EzvizCloudCaptureByMode(data, camera, photo, clip)]
     async_add_entities(entities)
 
 
@@ -122,11 +132,13 @@ class EzvizCloudRecordClip(EzvizCloudButton):
     _what = "clip"
 
     async def _save(self, url: str, code: str | None) -> None:
+        seconds = self._data.clip_seconds.get(self._serial, DEFAULT_CLIP_SECONDS)
+        seconds += _CLEAR_START_SECONDS
         ps = await async_capture_ps(
             async_get_clientsession(self.hass),
             url,
-            capture_seconds=CLIP_SECONDS,
-            max_bytes=_CLIP_MAX_BYTES,
+            capture_seconds=seconds,
+            max_bytes=seconds * _CLIP_BYTES_PER_SECOND,
         )
         clear, codec = await self.hass.async_add_executor_job(decrypt_ps, ps, code)
         ffmpeg = _ffmpeg_binary(self.hass)
@@ -140,3 +152,28 @@ class EzvizCloudRecordClip(EzvizCloudButton):
         await self.hass.async_add_executor_job(
             store.save_photo, store.photo_path(self._serial, stem), jpeg
         )
+
+
+class EzvizCloudCaptureByMode(EzvizCloudEntity, ButtonEntity):
+    """Presses the photo or the clip button as the camera's mode says; nothing in view mode."""
+
+    def __init__(
+        self,
+        data: EzvizCloudData,
+        camera: Camera,
+        photo: EzvizCloudCapture,
+        clip: EzvizCloudRecordClip,
+    ) -> None:
+        super().__init__(data, camera, "capture_by_mode")
+        self._buttons = {MODE_PHOTO: photo, MODE_RECORD: clip}
+        # What the last press saved, so an automation knows whether a new photo exists.
+        self._attr_extra_state_attributes = {"last_capture": None}
+
+    async def async_press(self) -> None:
+        button = self._buttons.get(self._data.modes[self._serial])
+        self._attr_extra_state_attributes = {"last_capture": button._what if button else "none"}
+        self.async_write_ha_state()
+        if button is None:
+            _LOGGER.debug("%s is in view mode, nothing captured", self._serial)
+            return
+        await button.async_press()

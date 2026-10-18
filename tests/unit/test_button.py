@@ -13,9 +13,9 @@ from homeassistant.exceptions import HomeAssistantError
 from custom_components.ezviz_cloud import EzvizCloudData
 from custom_components.ezviz_cloud.api import Camera, EzvizCloudError
 from custom_components.ezviz_cloud.button import (
-    CLIP_SECONDS,
     EzvizCloudButton,
     EzvizCloudCapture,
+    EzvizCloudCaptureByMode,
     EzvizCloudRecordClip,
     _ffmpeg_binary,
 )
@@ -58,14 +58,19 @@ def _entity(
     return entity
 
 
-async def test_setup_adds_a_photo_and_a_clip_button_per_camera() -> None:
+async def test_setup_adds_photo_clip_and_by_mode_buttons_per_camera() -> None:
     entry = MagicMock(runtime_data=_data(), options={})
     add = MagicMock()
     await setup_button(MagicMock(), entry, add)
     (entities,) = add.call_args.args
-    assert [type(e) for e in entities] == [EzvizCloudCapture, EzvizCloudRecordClip]
-    assert [e.unique_id for e in entities] == ["BK1_capture", "BK1_record"]
+    assert [type(e) for e in entities] == [
+        EzvizCloudCapture,
+        EzvizCloudRecordClip,
+        EzvizCloudCaptureByMode,
+    ]
+    assert [e.unique_id for e in entities] == ["BK1_capture", "BK1_record", "BK1_capture_by_mode"]
     assert entities[0]._streaming is entities[1]._streaming
+    assert entities[2]._buttons == {"photo": entities[0], "record": entities[1]}
 
 
 def _pipeline(capture: AsyncMock | None = None):  # type: ignore[no-untyped-def]
@@ -125,7 +130,9 @@ async def test_clip_press_saves_video_and_photo(tmp_path: Path) -> None:
     with p_capture as capture, p_decrypt, p_jpeg, p_mp4 as to_mp4, p_bin, p_session, p_dispatch:
         await entity.async_press()
 
-    assert capture.await_args.kwargs["capture_seconds"] == CLIP_SECONDS
+    # 15 s by default, plus the 3 s clear start that is skipped.
+    assert capture.await_args.kwargs["capture_seconds"] == 18
+    assert capture.await_args.kwargs["max_bytes"] == 18 * 700_000
     assert to_mp4.await_args.args == (b"clear-ps", "hevc", "/usr/bin/ffmpeg")
     folder = tmp_path / "ezviz_cloud" / "BK1"
     (video,) = folder.glob("*.mp4")
@@ -203,3 +210,36 @@ def test_ffmpeg_binary_comes_from_ha_ffmpeg_manager() -> None:
     fake.get_ffmpeg_manager.return_value.binary = "/opt/ffmpeg"
     with patch.dict(sys.modules, {"homeassistant.components.ffmpeg": fake}):
         assert _ffmpeg_binary(MagicMock()) == "/opt/ffmpeg"
+
+
+async def test_clip_follows_the_cameras_clip_length(tmp_path: Path) -> None:
+    entity = _entity(_hass(tmp_path), "SECRET", EzvizCloudRecordClip)
+    entity._data.clip_seconds["BK1"] = 60
+    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline()
+    with p_capture as capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch:
+        await entity.async_press()
+    assert capture.await_args.kwargs["capture_seconds"] == 63
+
+
+@pytest.mark.parametrize(
+    ("mode", "pressed", "last"),
+    [("view", None, "none"), ("photo", "photo", "photo"), ("record", "clip", "clip")],
+)
+async def test_capture_by_mode_presses_what_the_mode_says(
+    mode: str, pressed: str | None, last: str
+) -> None:
+    data = _data()
+    data.modes["BK1"] = mode
+    photo, clip = MagicMock(_what="photo"), MagicMock(_what="clip")
+    photo.async_press = AsyncMock()
+    clip.async_press = AsyncMock()
+    entity = EzvizCloudCaptureByMode(data, CAM, photo, clip)
+    entity.async_write_ha_state = MagicMock()  # type: ignore[method-assign]
+    assert entity.extra_state_attributes == {"last_capture": None}
+
+    await entity.async_press()
+
+    assert photo.async_press.await_count == (pressed == "photo")
+    assert clip.async_press.await_count == (pressed == "clip")
+    assert entity.extra_state_attributes == {"last_capture": last}
+    entity.async_write_ha_state.assert_called_once()
