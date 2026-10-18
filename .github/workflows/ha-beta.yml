@@ -3,7 +3,7 @@ name: Newest HA core
 # The CI workflow tests against the newest *stable* core, which is what users
 # run today. This one tests against the newest release on PyPI, beta included,
 # installed under that core's own package_constraints.txt exactly as Home
-# Assistant would. We declare no requirements, but we lean on core internals
+# Assistant would, together with the manifest requirements. We also lean on core internals
 # (camera, http, websocket_api, frontend static paths, probatio), which can
 # change in any release. A beta lands about a week before each stable, so the
 # daily run turns a break there into a red build while there is still time to react.
@@ -47,9 +47,10 @@ jobs:
             fi
             echo "Testing against homeassistant==$HA_VERSION"
             python3 -c "import urllib.request; urllib.request.urlretrieve(\"https://raw.githubusercontent.com/home-assistant/core/$HA_VERSION/homeassistant/package_constraints.txt\", \"/tmp/constraints.txt\")"
+            REQS=$(python3 -c "import json; print(*json.load(open(\"custom_components/ezviz_cloud/manifest.json\"))[\"requirements\"])")
             # numpy and PyTurboJPEG: importing the HA camera platform pulls in the stream and image helpers.
             pip install --quiet --no-cache-dir --root-user-action=ignore -c /tmp/constraints.txt \
-              "homeassistant==$HA_VERSION" numpy PyTurboJPEG pytest pytest-asyncio
+              "homeassistant==$HA_VERSION" $REQS numpy PyTurboJPEG pytest pytest-asyncio
             pip list 2>/dev/null | grep -iE "^(homeassistant|probatio|aiohttp) "
             pytest tests/unit/ -q -p no:cacheprovider
           '
