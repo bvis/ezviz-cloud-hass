@@ -6,7 +6,7 @@ blueprint:
     clip* button. *Capture by mode* follows the camera's *Mode*: nothing in
     *View*, a photo in *Photo*, a clip in *Record*, so an automation can switch
     the mode when nobody is home. The photo (and the clip) is saved to *Media →
-    My media → ezviz_cloud* and the photo is shown by the camera's *Last photo*
+    EZVIZ Cloud*, in the camera's folder, and the photo is shown by the camera's *Last photo*
     entity. Optionally, send it to a phone with the Home Assistant app.
   domain: automation
   source_url: https://github.com/bvis/ezviz-cloud-hass/blob/main/blueprints/automation/ezviz_cloud/capture_photo.yaml
