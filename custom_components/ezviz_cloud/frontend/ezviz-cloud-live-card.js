@@ -13,7 +13,12 @@
 // looks up its DOM with document.getElementById, which cannot reach inside
 // Home Assistant's shadow roots, so it runs in an iframe srcdoc.
 
-const EZUIKIT = "https://cdn.jsdelivr.net/npm/ezuikit-js@9.0.23/ezuikit.js";
+const EZUIKIT_PKG = "https://cdn.jsdelivr.net/npm/ezuikit-js@9.0.23";
+const EZUIKIT = `${EZUIKIT_PKG}/ezuikit.js`;
+// The player fetches its WebAssembly decoder (~3 MB) from EZVIZ's static host
+// unless told otherwise; that host can be slow enough from Europe to miss the
+// video timeout. The npm package ships the same files, so take them from jsDelivr.
+const EZUIKIT_STATIC = `${EZUIKIT_PKG}/ezuikit_static`;
 
 // Card texts by Home Assistant language. Kept as a plain JSON literal between
 // the markers so the repo tests can check every language has every key.
@@ -483,6 +488,7 @@ class EzvizCloudLiveCard extends HTMLElement {
       accessToken: auth.access_token,
       url: `ezopen://${code ? `${code}@` : ""}open.ezviz.com/${serial}/${channel}.live`,
       env: { domain: auth.domain },
+      staticPath: EZUIKIT_STATIC,
       language: "en",
     }).replace(/</g, "\\u003c");
     const iframe = document.createElement("iframe");
