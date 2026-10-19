@@ -285,6 +285,17 @@ The live camera and the *Capture photo* and *Record clip* buttons open the same 
 | A camera has no folder in *Media → EZVIZ Cloud* | It hasn't saved anything yet, or everything it saved was deleted by the retention. Press *Capture photo* to check. |
 | The clip doesn't play in the browser | The browser can't play H.265. Open it in Safari, Chrome or Edge, or in the Home Assistant app. |
 
+## Removal
+
+1. Settings → Devices & services → EZVIZ Cloud → ⋮ → **Delete**.
+2. In HACS, open EZVIZ Cloud → ⋮ → **Remove**, then restart Home Assistant.
+3. Photos and recordings stay in `<media>/ezviz_cloud/`. Delete that folder if you don't want them.
+4. Optionally, delete the application in the EZVIZ developer console so its AppKey stops working.
+
+## Quality scale
+
+[`quality_scale.yaml`](custom_components/ezviz_cloud/quality_scale.yaml) lists every rule of Home Assistant's [integration quality scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/) with its status here. Rules marked `todo` link to the issue that tracks them.
+
 ## Support
 
 Questions and bug reports: [GitHub issues](https://github.com/bvis/ezviz-cloud-hass/issues). Please never paste your AppSecret, access token or verification code.

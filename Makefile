@@ -13,7 +13,7 @@ check: lint format-check typecheck test dead-code
 	@echo "All checks passed."
 
 test:
-	pytest tests/unit/ -v --cov=custom_components/ezviz_cloud --cov-fail-under=90 --cov-report=term-missing
+	pytest tests/unit/ -v --cov=custom_components/ezviz_cloud --cov-fail-under=95 --cov-report=term-missing
 
 lint:
 	ruff check .
