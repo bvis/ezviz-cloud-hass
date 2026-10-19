@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from custom_components import ezviz_cloud
 from custom_components.ezviz_cloud.api import Camera, EzvizCloudAuthError, EzvizCloudError
@@ -150,7 +150,7 @@ async def test_setup_entry_skips_cameras_of_another_account() -> None:
 @pytest.mark.parametrize(
     ("kwargs", "raised"),
     [
-        ({"side_effect": EzvizCloudAuthError("bad")}, ConfigEntryError),
+        ({"side_effect": EzvizCloudAuthError("bad")}, ConfigEntryAuthFailed),
         ({"side_effect": EzvizCloudError("down")}, ConfigEntryNotReady),
         ({"cameras_effect": EzvizCloudError("down")}, ConfigEntryNotReady),
     ],

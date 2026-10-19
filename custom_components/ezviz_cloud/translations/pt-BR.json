@@ -10,7 +10,33 @@
           "app_secret": "AppSecret"
         },
         "data_description": {
-          "region": "A região da sua conta EZVIZ. Um AppKey só funciona na própria região."
+          "region": "A região da sua conta EZVIZ. Um AppKey só funciona na própria região.",
+          "app_key": "Aparece ao lado do app no console de desenvolvedor.",
+          "app_secret": "O segredo do app, ao lado do AppKey no console de desenvolvedor."
+        }
+      },
+      "reauth_confirm": {
+        "title": "A EZVIZ recusou o AppSecret",
+        "description": "A EZVIZ não aceita mais o AppSecret do app {app_key}. Cole o AppSecret atual do console de desenvolvedor.",
+        "data": {
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "app_secret": "O segredo do app, ao lado do AppKey no console de desenvolvedor."
+        }
+      },
+      "reconfigure": {
+        "title": "App EZVIZ Open Platform",
+        "description": "Altere a região ou o AppSecret. Para usar outro app, adicione a integração de novo.",
+        "data": {
+          "region": "Região",
+          "app_key": "AppKey",
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "region": "A região da sua conta EZVIZ. Um AppKey só funciona na própria região.",
+          "app_key": "Aparece ao lado do app no console de desenvolvedor.",
+          "app_secret": "O segredo do app, ao lado do AppKey no console de desenvolvedor."
         }
       }
     },
@@ -19,7 +45,10 @@
       "cannot_connect": "Não foi possível conectar à EZVIZ Open Platform."
     },
     "abort": {
-      "already_configured": "Este AppKey já está configurado."
+      "already_configured": "Este AppKey já está configurado.",
+      "reauth_successful": "O AppSecret foi atualizado.",
+      "reconfigure_successful": "As configurações foram atualizadas.",
+      "unique_id_mismatch": "Este é outro AppKey. Para usar outro app, adicione a integração de novo."
     }
   },
   "selector": {
@@ -49,6 +78,10 @@
         "data": {
           "serial": "Câmera",
           "code": "Código de verificação"
+        },
+        "data_description": {
+          "serial": "As câmeras desta conta EZVIZ.",
+          "code": "Seis letras maiúsculas na etiqueta da câmera. Deixe vazio para remover o código salvo."
         }
       },
       "recordings": {
@@ -57,6 +90,10 @@
         "data": {
           "retention_days": "Manter por (dias)",
           "max_per_camera": "Máximo por câmera (0 = sem limite)"
+        },
+        "data_description": {
+          "retention_days": "Gravações mais antigas são apagadas.",
+          "max_per_camera": "Quando uma câmera tem mais gravações, as mais antigas são apagadas. 0 mantém todas."
         }
       }
     },

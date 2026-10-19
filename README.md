@@ -80,7 +80,7 @@ Your cameras show up under **My resources → Equipment list**. If a camera isn'
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=ezviz_cloud)
 
-Settings → Devices & services → Add integration → **EZVIZ Cloud**. Choose your region and paste the AppKey and AppSecret. The credentials are checked before the entry is created.
+Settings → Devices & services → Add integration → **EZVIZ Cloud**. Choose your region and paste the AppKey and AppSecret. The credentials are checked before the entry is created. To change the region or the AppSecret later, use **Reconfigure** on the integration. If EZVIZ stops accepting the AppSecret, Home Assistant asks for the new one.
 
 ### 3. Store the verification codes
 

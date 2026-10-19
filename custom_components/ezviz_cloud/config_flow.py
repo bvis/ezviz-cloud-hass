@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import probatio as vol
@@ -49,6 +50,8 @@ from .websocket import schedule_reload_if_new
 
 _LOGGER = logging.getLogger(__name__)
 
+SECRET_SELECTOR = TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
+
 DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_REGION, default="eu"): SelectSelector(
@@ -59,9 +62,7 @@ DATA_SCHEMA = vol.Schema(
             )
         ),
         vol.Required(CONF_APP_KEY): TextSelector(),
-        vol.Required(CONF_APP_SECRET): TextSelector(
-            TextSelectorConfig(type=TextSelectorType.PASSWORD)
-        ),
+        vol.Required(CONF_APP_SECRET): SECRET_SELECTOR,
     }
 )
 
@@ -77,39 +78,89 @@ class EzvizCloudConfigFlow(ConfigFlow, domain=DOMAIN):
         """Verification codes are kept in the entry options."""
         return EzvizCloudOptionsFlow()
 
+    async def _async_check(self, region: str, app_key: str, app_secret: str) -> dict[str, str]:
+        """Ask the platform for a token; the errors to show, empty when it worked."""
+        api = EzvizCloudApi(
+            async_get_clientsession(self.hass), REGIONS[region], app_key, app_secret
+        )
+        try:
+            await api.async_get_token()
+        except EzvizCloudAuthError:
+            return {"base": "invalid_auth"}
+        except EzvizCloudError:
+            return {"base": "cannot_connect"}
+        return {}
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Handle the only step."""
+        """Ask for the region and the app's credentials."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            app_key = user_input[CONF_APP_KEY].strip()
-            await self.async_set_unique_id(app_key)
+            data = _clean(user_input)
+            await self.async_set_unique_id(data[CONF_APP_KEY])
             self._abort_if_unique_id_configured()
-            api = EzvizCloudApi(
-                async_get_clientsession(self.hass),
-                REGIONS[user_input[CONF_REGION]],
-                app_key,
-                user_input[CONF_APP_SECRET].strip(),
-            )
-            try:
-                await api.async_get_token()
-            except EzvizCloudAuthError:
-                errors["base"] = "invalid_auth"
-            except EzvizCloudError:
-                errors["base"] = "cannot_connect"
-            else:
-                return self.async_create_entry(
-                    title=f"EZVIZ Cloud ({user_input[CONF_REGION].upper()})",
-                    data={
-                        CONF_REGION: user_input[CONF_REGION],
-                        CONF_APP_KEY: app_key,
-                        CONF_APP_SECRET: user_input[CONF_APP_SECRET].strip(),
-                    },
-                )
+            errors = await self._async_check(**data)
+            if not errors:
+                return self.async_create_entry(title=_title(data), data=data)
         return self.async_show_form(
             step_id="user",
             data_schema=self.add_suggested_values_to_schema(DATA_SCHEMA, user_input),
             errors=errors,
         )
+
+    async def async_step_reauth(self, _entry_data: Mapping[str, Any]) -> ConfigFlowResult:
+        """EZVIZ rejected the stored credentials."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Ask for the AppSecret again; region and AppKey stay."""
+        entry = self._get_reauth_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            data = {**entry.data, CONF_APP_SECRET: user_input[CONF_APP_SECRET].strip()}
+            errors = await self._async_check(**data)
+            if not errors:
+                return self.async_update_reload_and_abort(entry, data=data)
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_APP_SECRET): SECRET_SELECTOR}),
+            description_placeholders={"app_key": entry.data[CONF_APP_KEY]},
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the region or the AppSecret of the same app."""
+        entry = self._get_reconfigure_entry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            data = _clean(user_input)
+            await self.async_set_unique_id(data[CONF_APP_KEY])
+            self._abort_if_unique_id_mismatch()
+            errors = await self._async_check(**data)
+            if not errors:
+                return self.async_update_reload_and_abort(entry, title=_title(data), data=data)
+        suggested = user_input or {k: v for k, v in entry.data.items() if k != CONF_APP_SECRET}
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=self.add_suggested_values_to_schema(DATA_SCHEMA, suggested),
+            errors=errors,
+        )
+
+
+def _clean(user_input: dict[str, Any]) -> dict[str, str]:
+    """The entry data from a form, credentials trimmed."""
+    return {
+        CONF_REGION: user_input[CONF_REGION],
+        CONF_APP_KEY: user_input[CONF_APP_KEY].strip(),
+        CONF_APP_SECRET: user_input[CONF_APP_SECRET].strip(),
+    }
+
+
+def _title(data: dict[str, str]) -> str:
+    return f"EZVIZ Cloud ({data[CONF_REGION].upper()})"
 
 
 class EzvizCloudOptionsFlow(OptionsFlow):
