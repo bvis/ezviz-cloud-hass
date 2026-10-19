@@ -9,9 +9,7 @@ rules:
   brands: done
   common-modules: done
   config-flow-test-coverage: done
-  config-flow:
-    status: todo
-    comment: Only region has a data_description (#12).
+  config-flow: done
   dependency-transparency: done
   docs-actions:
     status: exempt
@@ -39,12 +37,8 @@ rules:
   log-when-unavailable:
     status: exempt
     comment: Nothing is polled, so there is no connection state to log.
-  parallel-updates:
-    status: todo
-    comment: "#10"
-  reauthentication-flow:
-    status: todo
-    comment: "#7"
+  parallel-updates: done
+  reauthentication-flow: done
   test-coverage: done
 
   # Gold
@@ -72,19 +66,13 @@ rules:
     status: exempt
     comment: Every entity is part of the camera's normal use.
   entity-translations: done
-  exception-translations:
-    status: todo
-    comment: "#9"
+  exception-translations: done
   icon-translations: done
-  reconfiguration-flow:
-    status: todo
-    comment: "#11"
+  reconfiguration-flow: done
   repair-issues:
     status: exempt
     comment: No condition is detected server side that the user could repair; a missing verification code is reported by the card where it happens.
-  stale-devices:
-    status: todo
-    comment: "#8"
+  stale-devices: done
 
   # Platinum
   async-dependency: done
