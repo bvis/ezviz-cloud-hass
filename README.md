@@ -16,12 +16,13 @@ The built-in EZVIZ integration plays video over local RTSP, so battery devices (
 ## Features
 
 - **Live view card** (`custom:ezviz-cloud-live-card`) with a visual editor, shipped with the integration. No Lovelace resource to add by hand.
+- **A live camera entity** too, for everything that isn't the card: any camera card, the live view in an iPhone notification when the doorbell rings, HomeKit and other bridges. It streams only while someone watches.
 - **Wakes sleeping battery cameras** when you press *Watch live*, typically showing video within 5 seconds (up to 15 the first time a browser loads the player).
 - **Works with video encryption on.** The verification code from the device label decrypts the stream in the browser.
 - **Saves battery**: the stream stops after 60 seconds (configurable), when you press *Stop*, or as soon as you leave the view.
 - **In your language**: English, Spanish, Catalan, French, German, Italian, Portuguese (Portugal and Brazil) and Dutch, following each Home Assistant user's language.
 - **Photos and clips, saved in Home Assistant** (optional): record what the card shows, or press a button (from a dashboard or an automation, no browser needed) to save a photo or a clip. Everything shows up in *Media → EZVIZ Cloud*, one folder per camera, and old files are deleted after the retention you choose.
-- **One button for the doorbell**: *Capture by mode* takes a photo, records a clip or does nothing depending on the camera's *Mode*, so an automation can decide what a ring does, for example record only when nobody is home. A ready-made [blueprint](#7-capture-from-an-automation-optional) does the wiring and can send the photo to your phone.
+- **One button for the doorbell**: *Capture by mode* takes a photo, records a clip or does nothing depending on the camera's *Mode*, so an automation can decide what a ring does, for example record only when nobody is home. A ready-made [blueprint](#8-capture-from-an-automation-optional) does the wiring and can send the photo to your phone.
 - **Access token handled for you.** The token lives 7 days; the integration renews it when it's needed and keeps it out of entity states and the recorder.
 
 ## Supported devices
@@ -30,7 +31,7 @@ Any camera the EZVIZ Open Platform can play should work. Tested so far:
 
 | Model | Type | Result |
 |---|---|---|
-| HP2 (`CS-HP2-R100-6E2WB-GR`) | Battery smart peephole, no RTSP, H.265 | Live view, recordings, *Capture photo* and *Record clip* work, wakes from sleep, encryption on |
+| HP2 (`CS-HP2-R100-6E2WB-GR`) | Battery smart peephole, no RTSP, H.265 | Live view (card and live camera), recordings, *Capture photo* and *Record clip* work, wakes from sleep, encryption on |
 
 If you try another model, please open an issue with the result, good or bad, so this table can grow.
 
@@ -85,6 +86,8 @@ Settings → Devices & services → Add integration → **EZVIZ Cloud**. Choose 
 
 On the integration, press **Configure** → **Verification codes**, pick a camera from the list and type its verification code. Repeat for each camera with encryption on. Cameras that already have a code are marked ✓; saving an empty code removes it.
 
+Saving checks the code against the camera's video, which wakes it and takes up to 20 seconds. A code that doesn't decrypt the video is refused. If the camera doesn't answer, or is streaming right then, the code is saved without the check.
+
 The code is kept in Home Assistant's integration settings, not in the dashboard. It still reaches the browser when a stream starts, because the video is decrypted there.
 
 ### 4. Add the card
@@ -101,7 +104,17 @@ max_seconds: 60          # optional, default 60
 
 `code: ABCDEF` still works on the card and wins over the stored one, but anyone who can open the dashboard can read it there.
 
-### 5. Photos and recordings (optional)
+### 5. The live camera (optional)
+
+Each camera also gets a **Live** camera entity (`camera.<name>_live`). Use it where the card can't go: a *Picture entity* or *Picture glance* card, the live view in a notification (see [section 8](#8-capture-from-an-automation-optional)), HomeKit or any other bridge. Its picture is the last saved photo, so a dashboard never wakes the camera; the video starts when you open it.
+
+Home Assistant plays it through go2rtc (WebRTC) or its own HLS player, both included in a default install. The video is the camera's own H.265 (or H.264), not re-encoded, so it costs Home Assistant almost no CPU; the browser or phone has to play H.265, as with the clips.
+
+The live camera, *Capture photo* and *Record clip* share one stream per camera: a clip recorded while you watch, or a notification opened during a clip, opens the camera once. The stream closes 20 seconds after the last viewer leaves. If the camera doesn't answer, it isn't asked again for a minute.
+
+**Requests to EZVIZ:** one live address request plus the live stream while someone watches (and 20 seconds more). Nothing while nobody watches.
+
+### 6. Photos and recordings (optional)
 
 Each camera is a device with these entities:
 
@@ -152,9 +165,9 @@ Pressing a button while another capture of the same camera is running does nothi
 
 Clips are the camera's own H.265 (or H.264) video, not re-encoded, so they cost Home Assistant almost no CPU. Safari, Chrome and Edge play H.265 on most devices, and so does the Home Assistant app where the phone supports it; Firefox on desktop may not.
 
-**Requests to EZVIZ:** each press opens the camera's live stream once (one live address request plus the stream, for 7 seconds for a photo or the clip length plus 3 for a clip), the same as opening the card. *Capture by mode* in *View* makes none.
+**Requests to EZVIZ:** each press opens the camera's live stream once (one live address request plus the stream, for a few seconds for a photo or the clip length plus a few for a clip), the same as opening the card. If the live camera is already streaming, the press reads that stream and makes none. *Capture by mode* in *View* makes none.
 
-### 6. Buttons on a dashboard (optional)
+### 7. Buttons on a dashboard (optional)
 
 The quickest way to try the buttons is the camera's device page (Settings → Devices & services → EZVIZ Cloud → your camera). To have them on a dashboard, add a tile per button; tapping it presses the button. This example also shows the last photo, and both open the camera's folder in *Media*:
 
@@ -184,7 +197,7 @@ cards:
 
 Change the entity ids to your camera's, and `BD1234567` at the end of `navigation_path` to its serial. *Capture photo* and *Record clip* go in tiles the same way as *Capture by mode*.
 
-### 7. Capture from an automation (optional)
+### 8. Capture from an automation (optional)
 
 To capture when the doorbell rings, import the blueprint:
 
@@ -194,9 +207,29 @@ Then create an automation from it and pick:
 
 - **Trigger**: the entity that should start the capture, such as the doorbell relay's binary sensor, and the state to react to (`on` by default; leave it empty for an event entity).
 - **Capture button**: the camera's *Capture by mode* (recommended, so the *Mode* decides), *Capture photo* or *Record clip*.
-- Optionally a **notify action** from the Home Assistant app (`notify.mobile_app_<phone>`) and the camera's **Last photo** entity: the photo arrives with the notification. When *Capture by mode* saved nothing (*View*), the notification goes without a photo.
+- Optionally a **notify action** from the Home Assistant app (`notify.mobile_app_<phone>`), and either:
+  - the camera's **Last photo** entity: the notification arrives once the capture is saved, with the photo. When *Capture by mode* saved nothing (*View*), it goes without a photo; or
+  - the camera's **Live** entity: the notification goes out right away, before the capture, and opening it on an iPhone plays the camera live. The capture shares the same stream. Android shows a picture instead of the live view.
 
-If you'd rather write the automation yourself:
+If you'd rather write the automation yourself, this sends the live view first and then records a clip:
+
+```yaml
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.doorbell
+    to: "on"
+actions:
+  - action: notify.mobile_app_my_phone
+    data:
+      message: Someone is at the door
+      data:
+        entity_id: camera.front_door_live   # the iPhone app plays it live
+  - action: button.press
+    target:
+      entity_id: button.front_door_record_clip
+```
+
+Or, with the photo in the notification:
 
 ```yaml
 triggers:
@@ -220,11 +253,20 @@ actions:
 2. The card loads EZVIZ's web player ([ezuikit-js](https://www.npmjs.com/package/ezuikit-js), ISC license) and opens an `ezopen://` live address with your verification code.
 3. The EZVIZ cloud wakes the camera and relays the stream to your browser, where it is decrypted and decoded (H.265 and H.264).
 
-Video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser showing the card. That's why the `camera` entity only shows the last photo, from a recording or a capture. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
+With the card, video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
 
-The *Capture photo* and *Record clip* buttons are the exception: they open the stream inside Home Assistant, decrypt it with [pyezvizapi](https://pypi.org/project/pyezvizapi/) and hand it to ffmpeg, which decodes one frame for the photo or copies the video into an MP4 for the clip. The first couple of seconds the cloud sends carry no on-screen clock and are skipped, so captures start at the first live frame.
+The live camera and the *Capture photo* and *Record clip* buttons open the same `ezopen` stream inside Home Assistant instead, decrypt it with [pyezvizapi](https://pypi.org/project/pyezvizapi/) and hand it to ffmpeg: one frame for a photo, a copy into an MP4 for a clip, a copy into MPEG-TS on a local address that go2rtc and Home Assistant's stream player read for the live camera. That address only answers with a random token that changes at every restart. The first couple of seconds the cloud sends don't decode and carry no on-screen clock; they are skipped, so video starts at the first live frame.
 
-**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). If that list has a camera the integration has no device for, the account reloads to add it (a token and a camera list request). The live stream itself is opened by the player in the browser. Each press of *Capture photo* or *Record clip* adds one live address request plus the live stream, the same as opening the card once (for 7 or 15 seconds).
+**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). If that list has a camera the integration has no device for, the account reloads to add it (a token and a camera list request). The card's live stream is opened by the player in the browser. The live camera and each press of *Capture photo* or *Record clip* add one live address request plus the live stream, shared between them, kept while it is read and 20 seconds after. Saving a verification code opens it once to check the code.
+
+## Limitations
+
+- **Everything goes through the EZVIZ cloud.** Video travels from the camera to EZVIZ and back, so it needs internet and EZVIZ's servers, and has a few seconds of delay. Nothing works locally.
+- **EZVIZ limits streams.** A camera plays one stream at a time, and some battery cameras refuse a new one for a few minutes after the last. The card and the live camera are separate streams: watching both at once fails on such cameras.
+- **Battery.** Every live view, photo and clip wakes a battery camera. Watch in short sessions.
+- **H.265 needs a player that supports it** (Safari, Chrome, Edge, the Home Assistant app on most phones); the integration doesn't re-encode.
+- **Live view in notifications** works on the iPhone Home Assistant app. On Android the notification shows a picture.
+- **Only live video.** Recordings stored by EZVIZ (cloud or SD card) aren't browsable here; only what this integration saved.
 
 ## Troubleshooting
 
@@ -237,7 +279,9 @@ The *Capture photo* and *Record clip* buttons are the exception: they open the s
 | The card isn't in the card picker | Hard-refresh the browser (the card is loaded once per page load). |
 | *Capture photo* or *Record clip* fails with "No video received; the camera may be asleep" | The camera didn't answer within 20 seconds. Check it's online in the EZVIZ app and press again. |
 | *Capture photo* fails with "Could not decode a keyframe" | Usually a wrong verification code: check it under Configure. If the code is right, please open an issue with the camera model. |
-| A capture fails with "The stream ended before its first live keyframe" | The camera stopped streaming after a couple of seconds. Press again; if it keeps happening, please open an issue with the camera model. |
+| A capture fails with "The stream ended before its first keyframe" | The camera stopped streaming after a couple of seconds. Press again; if it keeps happening, please open an issue with the camera model. |
+| A capture or the live camera fails with "Stream error 5405" | The camera didn't answer the cloud. Some battery cameras refuse a new stream for a few minutes after the last one, or need waking by hand: wake it and try again. |
+| The live camera doesn't play in the browser or the phone | It can't play H.265. Use Safari, Chrome or Edge, or the Home Assistant app on a phone that supports it. |
 | A camera has no folder in *Media → EZVIZ Cloud* | It hasn't saved anything yet, or everything it saved was deleted by the retention. Press *Capture photo* to check. |
 | The clip doesn't play in the browser | The browser can't play H.265. Open it in Safari, Chrome or Edge, or in the Home Assistant app. |
 

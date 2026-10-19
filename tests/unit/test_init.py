@@ -14,6 +14,7 @@ from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from custom_components import ezviz_cloud
 from custom_components.ezviz_cloud.api import Camera, EzvizCloudAuthError, EzvizCloudError
 from custom_components.ezviz_cloud.const import CARD_URL, DATA_RECORDER
+from custom_components.ezviz_cloud.live import LiveStream, LiveStreamView
 from custom_components.ezviz_cloud.recording import RecordingSessions, RecordingUploadView
 
 DATA = {"region": "eu", "app_key": "key", "app_secret": "secret"}
@@ -34,7 +35,8 @@ async def test_setup_serves_card_with_content_hash_url() -> None:
     ):
         assert await ezviz_cloud.async_setup(hass, {})
     assert isinstance(hass.data[DATA_RECORDER], RecordingSessions)
-    assert isinstance(hass.http.register_view.call_args.args[0], RecordingUploadView)
+    views = [c.args[0] for c in hass.http.register_view.call_args_list]
+    assert [type(v) for v in views] == [RecordingUploadView, LiveStreamView]
     assert track_expire.call_args.args[2] == timedelta(seconds=10)
     with patch.object(RecordingSessions, "expire", AsyncMock()) as expire:
         await track_expire.call_args.args[1](None)
@@ -114,6 +116,12 @@ async def test_setup_entry_keeps_data_and_forwards_platforms() -> None:
     data = entry.runtime_data
     assert [c.serial for c in data.cameras] == ["BK1", "BK2"]
     assert data.modes == {"BK1": "view", "BK2": "view"}
+    assert all(isinstance(s, LiveStream) for s in data.streams.values())
+    assert [s.camera.serial for s in data.streams.values()] == ["BK1", "BK2"]
+    # Each stream reads its camera's code from the options when it opens.
+    entry.options = {"codes": {"BK2": "SECRET"}}
+    assert data.streams["BK2"]._code() == "SECRET"
+    assert data.streams["BK1"]._code() is None
     hass.config_entries.async_forward_entry_setups.assert_awaited_once()
 
 
@@ -140,5 +148,9 @@ async def test_setup_entry_errors(kwargs: dict, raised: type[Exception]) -> None
 
 async def test_unload() -> None:
     hass = _hass()
-    assert await ezviz_cloud.async_unload_entry(hass, MagicMock())
+    entry = MagicMock()
+    stream = MagicMock(async_close=AsyncMock())
+    entry.runtime_data.streams = {"BK1": stream}
+    assert await ezviz_cloud.async_unload_entry(hass, entry)
+    stream.async_close.assert_awaited_once()
     hass.config_entries.async_unload_platforms.assert_awaited_once()

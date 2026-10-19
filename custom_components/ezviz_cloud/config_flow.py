@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import probatio as vol
@@ -42,7 +43,11 @@ from .const import (
     DOMAIN,
     REGIONS,
 )
+from .live import LiveStream, async_grab_jpeg
+from .snapshot import EzvizCloudDecodeError
 from .websocket import schedule_reload_if_new
+
+_LOGGER = logging.getLogger(__name__)
 
 DATA_SCHEMA = vol.Schema(
     {
@@ -113,13 +118,19 @@ class EzvizCloudOptionsFlow(OptionsFlow):
     async def async_step_codes(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Pick a camera of the account and type its code; an empty code removes it."""
         codes: dict[str, str] = dict(self.config_entry.options.get(CONF_CODES, {}))
+        errors: dict[str, str] = {}
         if user_input is not None:
             code = user_input.get(CONF_CODE, "").strip().upper()
-            if code:
-                codes[user_input[CONF_SERIAL]] = code
+            if code and not await self._code_works(user_input[CONF_SERIAL], code):
+                errors["base"] = "invalid_code"
             else:
-                codes.pop(user_input[CONF_SERIAL], None)
-            return self.async_create_entry(data={**self.config_entry.options, CONF_CODES: codes})
+                if code:
+                    codes[user_input[CONF_SERIAL]] = code
+                else:
+                    codes.pop(user_input[CONF_SERIAL], None)
+                return self.async_create_entry(
+                    data={**self.config_entry.options, CONF_CODES: codes}
+                )
 
         if self.config_entry.state is not ConfigEntryState.LOADED:
             return self.async_abort(reason="not_loaded")
@@ -145,9 +156,13 @@ class EzvizCloudOptionsFlow(OptionsFlow):
         ]
         return self.async_show_form(
             step_id="codes",
+            errors=errors,
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_SERIAL, default=options[0]["value"]): SelectSelector(
+                    vol.Required(
+                        CONF_SERIAL,
+                        default=(user_input or {}).get(CONF_SERIAL, options[0]["value"]),
+                    ): SelectSelector(
                         SelectSelectorConfig(options=options, mode=SelectSelectorMode.DROPDOWN)
                     ),
                     vol.Optional(CONF_CODE): TextSelector(
@@ -156,6 +171,27 @@ class EzvizCloudOptionsFlow(OptionsFlow):
                 }
             ),
         )
+
+    async def _code_works(self, serial: str, code: str) -> bool:
+        """Decode one keyframe of the camera with ``code``; only a frame that won't
+        decode fails it. A camera that doesn't answer, or that is already streaming
+        with the current code, is saved unchecked. Requests to EZVIZ: one stream."""
+        if self.config_entry.state is not ConfigEntryState.LOADED:
+            return True
+        data = self.config_entry.runtime_data
+        stream = data.streams.get(serial)
+        if stream is None or stream.active:
+            return True
+        probe = LiveStream(self.hass, data.manager, stream.camera, lambda: code)
+        try:
+            await async_grab_jpeg(self.hass, probe)
+        except EzvizCloudDecodeError:
+            return False
+        except EzvizCloudError as err:
+            _LOGGER.debug("Code of %s saved unchecked: %s", serial, err)
+        finally:
+            await probe.async_close()
+        return True
 
     async def async_step_init(self, _user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Codes and recordings are separate, so changing one never resets the other."""

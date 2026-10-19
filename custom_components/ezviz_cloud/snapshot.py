@@ -1,17 +1,15 @@
-"""Server-side capture: play the live stream, decrypt it, hand it to ffmpeg.
+"""Server-side video: play the live stream, cut and decrypt it, hand it to ffmpeg.
 
 The card decrypts and plays video in the browser; this does the same without a
-browser, for the photo and clip buttons. It plays the same ``ezopen`` live
-stream (its URL comes from ``EzvizCloudApi.async_live_url``), decrypts the NAL
-bodies with ``pyezvizapi`` (the verification code is the AES key) and lets
-ffmpeg read the MPEG-PS: one frame to JPEG for a photo, a stream copy to MP4
-for a clip.
+browser, for the live camera and the photo and clip buttons (``live.py`` shares
+one stream between them). It plays the same ``ezopen`` live stream (its URL
+comes from ``EzvizCloudApi.async_live_url``), decrypts the NAL bodies with
+``pyezvizapi`` (the verification code is the AES key) and lets ffmpeg read the
+MPEG-PS: one frame to JPEG for a photo, a stream copy to MP4 for a clip.
 
-The stream opens with a group of pictures that is already in the clear and
-carries no on-screen clock: that one is skipped, so photos and clips start at
-the first live, encrypted keyframe. Requests to EZVIZ per call: one
-``live/url/ezopen`` request plus the live WebSocket, the same as opening the
-card once. Nothing is sent while idle.
+The stream opens with a group of pictures that doesn't decode and carries no
+on-screen clock: with a code that one is skipped, so video starts at the first
+live keyframe.
 """
 
 from __future__ import annotations
@@ -19,12 +17,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import AsyncIterator
 
 import aiohttp
 
 from .api import EzvizCloudError
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class EzvizCloudDecodeError(EzvizCloudError):
+    """ffmpeg found no frame it could decode: a wrong verification code, or a broken stream."""
+
 
 # The player handshake: protocol 0.1, no cipher suite (the NAL bodies carry
 # their own AES, keyed by the verification code).
@@ -36,37 +40,28 @@ _CODECS = {0x1B: "h264", 0x24: "hevc"}
 _DEFAULT_CODEC = "hevc"
 
 
-async def async_capture_ps(
+async def async_iter_stream(
     session: aiohttp.ClientSession,
     stream_url: str,
     *,
     wake_timeout: float = 20.0,
-    capture_seconds: float = 7.0,
-    max_bytes: int = 400_000,
-) -> bytes:
-    """Play the live stream and return the first few seconds of raw MPEG-PS.
+    idle_timeout: float = 10.0,
+) -> AsyncIterator[bytes]:
+    """Play the live stream and yield its raw MPEG-PS as it arrives.
 
     Waits up to ``wake_timeout`` for the first video byte (the camera may be
-    asleep), then keeps ``capture_seconds`` worth, capped at ``max_bytes``. The
-    default is enough to get past the clear first group of pictures (about 3 s)
-    to a live keyframe.
+    asleep) and ends after ``idle_timeout`` without one, or when the cloud closes
+    the stream. Closing the generator closes the stream.
     """
     host = stream_url.split("?")[0].replace("/live", "")
     play_param = "/live?" + stream_url.split("?", 1)[1]
-    loop = asyncio.get_running_loop()
-    buffer = bytearray()
-    started: float | None = None
+    started = False
     try:
         async with session.ws_connect(host + _WS_QUERY, max_msg_size=0) as ws:
             sent = False
-            deadline = loop.time() + wake_timeout
             while True:
-                limit = (started + capture_seconds) if started is not None else deadline
-                remaining = limit - loop.time()
-                if remaining <= 0:
-                    break
                 try:
-                    msg = await ws.receive(timeout=remaining)
+                    msg = await ws.receive(timeout=idle_timeout if started else wake_timeout)
                 except TimeoutError:
                     break
                 if msg.type is aiohttp.WSMsgType.TEXT:
@@ -84,11 +79,8 @@ async def async_capture_ps(
                             f"Stream error {info.get('errorCode')}: {info.get('errorMsg')}"
                         )
                 elif msg.type is aiohttp.WSMsgType.BINARY:
-                    if started is None:
-                        started = loop.time()
-                    buffer += msg.data
-                    if len(buffer) >= max_bytes:
-                        break
+                    started = True
+                    yield msg.data
                 elif msg.type in (
                     aiohttp.WSMsgType.CLOSED,
                     aiohttp.WSMsgType.CLOSING,
@@ -97,25 +89,92 @@ async def async_capture_ps(
                     break
     except aiohttp.ClientError as err:
         raise EzvizCloudError(f"Live stream failed: {err}") from err
-    if not buffer:
+    if not started:
         raise EzvizCloudError("No video received; the camera may be asleep")
-    return bytes(buffer)
 
 
-def decrypt_ps(ps: bytes, code: str | None) -> tuple[bytes, str]:
-    """Drop the clear start of the stream, decrypt the rest; returns it and its codec.
+class PackSplitter:
+    """Cuts the live MPEG-PS into packs, one frame each, as its bytes arrive.
 
-    Blocking (CPU-bound). pyezvizapi only recognises the packets once the IMKH
-    header is gone.
+    A pack is complete once the next one starts; a pack carrying a program stream
+    map (0xBC) opens a group of pictures, so it holds a keyframe, and the map
+    names the codec. Packet lengths are trusted, so payload bytes are never
+    mistaken for headers; unknown bytes are skipped up to the next pack.
     """
-    if ps[:4] == b"IMKH":
-        ps = ps[_IMKH_HEADER:]
-    start, codec = _scan(ps)
+
+    def __init__(self, *, skip_first_group: bool) -> None:
+        self._buf = bytearray()
+        self._header = True
+        self._groups = 0
+        self._skip = skip_first_group
+        self._keyframe = False
+        self.codec = _DEFAULT_CODEC
+
+    def feed(self, data: bytes) -> list[tuple[bytes, bool]]:
+        """Add ``data``; return the packs it completed, each with whether it is a keyframe."""
+        self._buf += data
+        if self._header:
+            if len(self._buf) < 4:
+                return []
+            if self._buf[:4] == b"IMKH":
+                if len(self._buf) < _IMKH_HEADER:
+                    return []
+                del self._buf[:_IMKH_HEADER]
+            self._header = False
+        ps = self._buf
+        done: list[tuple[bytes, bool]] = []
+        i, start = 0, None
+        while i + 6 <= len(ps):
+            if ps[i : i + 3] != b"\x00\x00\x01":
+                i = ps.find(b"\x00\x00\x01\xba", i + 1)
+                if i < 0:
+                    i = max(len(ps) - 3, 0)
+                    start = None
+                    break
+                start = None
+                continue
+            stream_id = ps[i + 3]
+            if stream_id == 0xBA:  # pack header: fixed 14 bytes plus stuffing
+                if i + 14 > len(ps) or i + 14 + (ps[i + 13] & 7) > len(ps):
+                    break
+                if start is not None:
+                    self._complete(bytes(ps[start:i]), done)
+                start, self._keyframe = i, False
+                i += 14 + (ps[i + 13] & 7)
+                continue
+            end = i + 6 + int.from_bytes(ps[i + 4 : i + 6], "big")
+            if end > len(ps):
+                break
+            if stream_id == 0xBC:
+                self.codec = _psm_video_codec(bytes(ps[i + 6 : end])) or self.codec
+                self._keyframe = True
+            i = end
+        # Keep the unfinished pack (or the unparsed tail) for the next call.
+        del ps[: start if start is not None else i]
+        return done
+
+    def _complete(self, pack: bytes, done: list[tuple[bytes, bool]]) -> None:
+        if self._keyframe:
+            self._groups += 1
+        if self._skip and self._groups < 2:
+            return
+        done.append((pack, self._keyframe))
+
+
+def decrypt_packs(packs: list[bytes], code: str | None, codec: str) -> list[bytes]:
+    """Decrypt whole packs in one go, then cut them back apart. Blocking (CPU-bound).
+
+    Decryption keeps every byte in place, and no NAL unit spans two packs, so
+    this equals decrypting each pack on its own.
+    """
     if not code:
-        return ps, codec
-    if start is None:
-        raise EzvizCloudError("The stream ended before its first live keyframe")
-    return _decrypt(ps[start:], code), codec
+        return packs
+    clear = _decrypt(b"".join(packs), code, codec)
+    out, pos = [], 0
+    for pack in packs:
+        out.append(clear[pos : pos + len(pack)])
+        pos += len(pack)
+    return out
 
 
 async def async_ps_to_jpeg(ps: bytes, ffmpeg_bin: str) -> bytes:
@@ -129,7 +188,7 @@ async def async_ps_to_jpeg(ps: bytes, ffmpeg_bin: str) -> bytes:
         ffmpeg_bin, ps, "-frames:v", "1", "-f", "image2", "-c:v", "mjpeg", "pipe:1"
     )
     if not jpeg.startswith(b"\xff\xd8"):
-        raise EzvizCloudError(f"Could not decode a keyframe: {err or 'no frame decoded'}")
+        raise EzvizCloudDecodeError(f"Could not decode a keyframe: {err or 'no frame decoded'}")
     return jpeg
 
 
@@ -182,37 +241,14 @@ async def _ffmpeg(ffmpeg_bin: str, ps: bytes, *output: str) -> tuple[bytes, str]
     return out, err.decode(errors="replace").strip()
 
 
-def _decrypt(ps: bytes, code: str) -> bytes:
-    """Decrypt the encrypted NAL bodies with the verification code (pyezvizapi)."""
+def _decrypt(ps: bytes, code: str, codec: str) -> bytes:
+    """Decrypt the encrypted NAL bodies with the verification code (pyezvizapi).
+
+    The NAL header stays in the clear: two bytes in H.265, one in H.264.
+    """
     from pyezvizapi.cloud_stream import decrypt_hikvision_ps_video  # type: ignore[attr-defined]
 
-    return decrypt_hikvision_ps_video(ps, code)
-
-
-def _scan(ps: bytes) -> tuple[int | None, str]:
-    """Offset of the pack that opens the second group of pictures, and the video codec.
-
-    Each group starts with a pack carrying a program stream map (0xBC), which
-    also names the codec; without one, HEVC is assumed. Packet lengths are
-    trusted, so payload bytes are never mistaken for headers.
-    """
-    i, pack, maps, codec = 0, 0, 0, _DEFAULT_CODEC
-    while i + 6 <= len(ps) and ps[i : i + 3] == b"\x00\x00\x01":
-        stream_id = ps[i + 3]
-        if stream_id == 0xBA:  # pack header: fixed 14 bytes plus stuffing
-            if i + 14 > len(ps):
-                break
-            pack = i
-            i += 14 + (ps[i + 13] & 7)
-            continue
-        length = int.from_bytes(ps[i + 4 : i + 6], "big")
-        if stream_id == 0xBC:
-            codec = _psm_video_codec(ps[i + 6 : i + 6 + length]) or codec
-            maps += 1
-            if maps == 2:
-                return pack, codec
-        i += 6 + length
-    return None, codec
+    return decrypt_hikvision_ps_video(ps, code, nalu_header_size=1 if codec == "h264" else 2)
 
 
 def _psm_video_codec(psm: bytes) -> str | None:

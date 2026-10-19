@@ -45,7 +45,7 @@
       },
       "codes": {
         "title": "Verificatiecodes",
-        "description": "Kies een camera en typ de verificatiecode van het label (zes hoofdletters). De kaart gebruikt die, zodat de code niet in het dashboard hoeft te staan. Camera's met ✓ hebben er al een; laat de code leeg om hem te verwijderen.",
+        "description": "Kies een camera en typ de verificatiecode van het label (zes hoofdletters). De kaart gebruikt die, zodat de code niet in het dashboard hoeft te staan. Camera's met ✓ hebben er al een; laat de code leeg om hem te verwijderen. Bij het opslaan wordt de code gecontroleerd met de video van de camera.",
         "data": {
           "serial": "Camera",
           "code": "Verificatiecode"
@@ -59,6 +59,9 @@
           "max_per_camera": "Maximum per camera (0 = geen limiet)"
         }
       }
+    },
+    "error": {
+      "invalid_code": "De video van de camera is met deze code niet te ontsleutelen. Controleer hem op het label van de camera."
     },
     "abort": {
       "not_loaded": "De integratie is niet geladen. Herstel eerst het account en probeer het opnieuw.",
@@ -85,6 +88,9 @@
     "camera": {
       "last_photo": {
         "name": "Laatste foto"
+      },
+      "live": {
+        "name": "Live"
       }
     },
     "sensor": {

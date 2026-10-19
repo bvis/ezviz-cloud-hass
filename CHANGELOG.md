@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Live camera entity.** Each camera gets a *Live* camera (`camera.<name>_live`) that plays in any camera card, in the iPhone app's notifications and in HomeKit or other bridges, through go2rtc or Home Assistant's HLS player. The video is the camera's own, not re-encoded. Its picture is the last saved photo, so a dashboard never wakes the camera. **Requests to EZVIZ:** one live address request plus the live stream while someone watches, and 20 seconds after.
+- **Live view in the doorbell notification.** The blueprint takes an optional *Live camera*: the notification goes out right away, before the capture, and opening it on an iPhone plays the camera. **Requests to EZVIZ:** none extra; the capture and the live view share the stream.
+- **Verification codes are checked when saved.** A code that doesn't decrypt the camera's video is refused; if the camera doesn't answer, the code is saved unchecked. **Requests to EZVIZ:** one live stream per code saved.
+- With the official EZVIZ integration also installed, the camera is one device instead of two.
+- README section on limitations.
+
+### Changed
+- The live camera, *Capture photo* and *Record clip* share one stream per camera: pressing a button while the camera is being watched, or opening the live view during a clip, no longer opens a second stream, which battery cameras refuse. A camera that doesn't answer isn't asked again for a minute. **Requests to EZVIZ:** the same number of live address requests per capture, fewer when captures and viewing overlap. The stream now stays open 20 seconds after its last reader, a photo or clip included, so a viewer arriving right after doesn't need a new one.
+
+### Fixed
+- Encrypted H.264 cameras: photos and clips were decrypted as if they were H.265.
+
 ## [0.9.0] - 2026-10-18
 
 ### Added

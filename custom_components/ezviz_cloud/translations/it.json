@@ -45,7 +45,7 @@
       },
       "codes": {
         "title": "Codici di verifica",
-        "description": "Scegli una telecamera e inserisci il codice di verifica della sua etichetta (sei lettere maiuscole). La scheda lo usa, così il codice non deve stare nella dashboard. Le telecamere con ✓ ne hanno già uno; lascia il codice vuoto per rimuoverlo.",
+        "description": "Scegli una telecamera e inserisci il codice di verifica della sua etichetta (sei lettere maiuscole). La scheda lo usa, così il codice non deve stare nella dashboard. Le telecamere con ✓ ne hanno già uno; lascia il codice vuoto per rimuoverlo. Al salvataggio il codice viene verificato con il video della videocamera.",
         "data": {
           "serial": "Telecamera",
           "code": "Codice di verifica"
@@ -59,6 +59,9 @@
           "max_per_camera": "Massimo per telecamera (0 = nessun limite)"
         }
       }
+    },
+    "error": {
+      "invalid_code": "Il video della videocamera non si decifra con questo codice. Controllalo sull'etichetta della videocamera."
     },
     "abort": {
       "not_loaded": "L'integrazione non è caricata. Sistema prima l'account e riprova.",
@@ -85,6 +88,9 @@
     "camera": {
       "last_photo": {
         "name": "Ultima foto"
+      },
+      "live": {
+        "name": "Dal vivo"
       }
     },
     "sensor": {

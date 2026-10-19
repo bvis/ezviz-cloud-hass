@@ -27,6 +27,7 @@ from .const import (
     CARD_URL,
     CONF_APP_KEY,
     CONF_APP_SECRET,
+    CONF_CODES,
     CONF_MAX_PER_CAMERA,
     CONF_REGION,
     CONF_RETENTION_DAYS,
@@ -38,6 +39,7 @@ from .const import (
     REGIONS,
     signal_recorded,
 )
+from .live import LiveStream, LiveStreamView
 from .recording import RecordingSessions, RecordingStore, RecordingUploadView
 from .token import TokenManager
 from .websocket import async_register_commands
@@ -57,6 +59,8 @@ class EzvizCloudData:
     modes: dict[str, str]
     # Clip length per serial; the number entities own and restore it.
     clip_seconds: dict[str, int] = field(default_factory=dict)
+    # The shared live stream per serial, read by the live camera and the buttons.
+    streams: dict[str, LiveStream] = field(default_factory=dict)
 
 
 type EzvizCloudConfigEntry = ConfigEntry[EzvizCloudData]
@@ -81,6 +85,7 @@ async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
     sessions = RecordingSessions(hass, store)
     hass.data[DATA_RECORDER] = sessions
     hass.http.register_view(RecordingUploadView())
+    hass.http.register_view(LiveStreamView())
 
     async def _expire(_now: datetime) -> None:
         await sessions.expire()
@@ -124,6 +129,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
     entry.runtime_data = EzvizCloudData(
         manager, list(cameras.values()), dict.fromkeys(cameras, MODE_VIEW)
     )
+    for camera in cameras.values():
+
+        def _code(serial: str = camera.serial) -> str | None:
+            code: str | None = entry.options.get(CONF_CODES, {}).get(serial)
+            return code
+
+        entry.runtime_data.streams[camera.serial] = LiveStream(hass, manager, camera, _code)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     store = hass.data[DATA_RECORDER].store
@@ -156,5 +168,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -> bool:
-    """Remove the entities; open upload sessions close on their own."""
+    """Remove the entities and close the live streams; upload sessions close on their own."""
+    for stream in entry.runtime_data.streams.values():
+        await stream.async_close()
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

@@ -108,5 +108,10 @@ async def test_capture_blueprint_is_a_valid_automation(
     monkeypatch.setattr(core._hass, "hass", core.HomeAssistant(str(tmp_path)))
     substituted = instance.async_substitute()
     assert substituted["variables"]["trigger_state"] == "on"
+    assert substituted["variables"]["live_camera"] == ""
     config = PLATFORM_SCHEMA(substituted)
-    assert config["actions"][0]["target"]["entity_id"] == ["button.door_capture_photo"]
+    # The live-view notification goes first, then the capture, then the photo one.
+    live, press, photo = config["actions"]
+    assert press["target"]["entity_id"] == ["button.door_capture_photo"]
+    assert live["then"][0]["data"]["data"]["entity_id"].template == "{{ live_camera }}"
+    assert "image" in photo["then"][0]["data"]["data"].template

@@ -45,7 +45,7 @@
       },
       "codes": {
         "title": "Códigos de verificação",
-        "description": "Escolha uma câmara e escreva o código de verificação da etiqueta (seis letras maiúsculas). O cartão usa-o, por isso o código não tem de estar no painel. As câmaras marcadas com ✓ já têm um; deixe o código vazio para o remover.",
+        "description": "Escolha uma câmara e escreva o código de verificação da etiqueta (seis letras maiúsculas). O cartão usa-o, por isso o código não tem de estar no painel. As câmaras marcadas com ✓ já têm um; deixe o código vazio para o remover. Ao guardar, o código é verificado com o vídeo da câmara.",
         "data": {
           "serial": "Câmara",
           "code": "Código de verificação"
@@ -59,6 +59,9 @@
           "max_per_camera": "Máximo por câmara (0 = sem limite)"
         }
       }
+    },
+    "error": {
+      "invalid_code": "O vídeo da câmara não se decifra com este código. Confirma-o na etiqueta da câmara."
     },
     "abort": {
       "not_loaded": "A integração não está carregada. Corrija primeiro a conta e tente novamente.",
@@ -85,6 +88,9 @@
     "camera": {
       "last_photo": {
         "name": "Última fotografia"
+      },
+      "live": {
+        "name": "Em direto"
       }
     },
     "sensor": {

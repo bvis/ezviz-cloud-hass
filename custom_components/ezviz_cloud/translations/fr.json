@@ -45,7 +45,7 @@
       },
       "codes": {
         "title": "Codes de vérification",
-        "description": "Choisissez une caméra et saisissez le code de vérification de son étiquette (six lettres majuscules). La carte l'utilise, le code n'a donc pas besoin d'être dans le tableau de bord. Les caméras marquées ✓ en ont déjà un ; laissez le code vide pour le supprimer.",
+        "description": "Choisissez une caméra et saisissez le code de vérification de son étiquette (six lettres majuscules). La carte l'utilise, le code n'a donc pas besoin d'être dans le tableau de bord. Les caméras marquées ✓ en ont déjà un ; laissez le code vide pour le supprimer. À l'enregistrement, le code est vérifié avec la vidéo de la caméra.",
         "data": {
           "serial": "Caméra",
           "code": "Code de vérification"
@@ -59,6 +59,9 @@
           "max_per_camera": "Maximum par caméra (0 = sans limite)"
         }
       }
+    },
+    "error": {
+      "invalid_code": "La vidéo de la caméra ne se déchiffre pas avec ce code. Vérifiez-le sur l'étiquette de la caméra."
     },
     "abort": {
       "not_loaded": "L'intégration n'est pas chargée. Corrigez d'abord le compte, puis réessayez.",
@@ -85,6 +88,9 @@
     "camera": {
       "last_photo": {
         "name": "Dernière photo"
+      },
+      "live": {
+        "name": "En direct"
       }
     },
     "sensor": {

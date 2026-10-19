@@ -45,7 +45,7 @@
       },
       "codes": {
         "title": "Verifizierungscodes",
-        "description": "Wähle eine Kamera und gib den Verifizierungscode von ihrem Etikett ein (sechs Großbuchstaben). Die Karte verwendet ihn, damit der Code nicht im Dashboard stehen muss. Mit ✓ markierte Kameras haben bereits einen; lass das Feld leer, um ihn zu entfernen.",
+        "description": "Wähle eine Kamera und gib den Verifizierungscode von ihrem Etikett ein (sechs Großbuchstaben). Die Karte verwendet ihn, damit der Code nicht im Dashboard stehen muss. Mit ✓ markierte Kameras haben bereits einen; lass das Feld leer, um ihn zu entfernen. Beim Speichern wird der Code mit dem Video der Kamera geprüft.",
         "data": {
           "serial": "Kamera",
           "code": "Verifizierungscode"
@@ -59,6 +59,9 @@
           "max_per_camera": "Maximum pro Kamera (0 = unbegrenzt)"
         }
       }
+    },
+    "error": {
+      "invalid_code": "Das Video der Kamera lässt sich mit diesem Code nicht entschlüsseln. Prüfe ihn auf dem Etikett der Kamera."
     },
     "abort": {
       "not_loaded": "Die Integration ist nicht geladen. Behebe zuerst das Konto und versuche es dann erneut.",
@@ -85,6 +88,9 @@
     "camera": {
       "last_photo": {
         "name": "Letztes Foto"
+      },
+      "live": {
+        "name": "Live"
       }
     },
     "sensor": {

@@ -1,4 +1,4 @@
-"""Server-side capture: WebSocket play, skipping the clear start, decrypt, ffmpeg."""
+"""Server-side video: WebSocket play, cutting into packs, decrypt, ffmpeg."""
 
 from __future__ import annotations
 
@@ -11,12 +11,13 @@ import pytest
 
 from custom_components.ezviz_cloud.api import EzvizCloudError
 from custom_components.ezviz_cloud.snapshot import (
+    EzvizCloudDecodeError,
+    PackSplitter,
     _decrypt,
-    _scan,
-    async_capture_ps,
+    async_iter_stream,
     async_ps_to_jpeg,
     async_ps_to_mp4,
-    decrypt_ps,
+    decrypt_packs,
 )
 
 IMKH = b"IMKH" + b"\x00" * 36
@@ -42,56 +43,88 @@ def _gop(frame: bytes, stream_type: int = 0x24) -> bytes:
     return PACK + _psm(stream_type) + _pes(frame)
 
 
-def test_scan_finds_the_second_group_and_the_codec() -> None:
-    first = _gop(b"clear")
-    assert _scan(first + _gop(b"live")) == (len(first), "hevc")
+def _collect(splitter: PackSplitter, *chunks: bytes) -> list[tuple[bytes, bool]]:
+    out: list[tuple[bytes, bool]] = []
+    for chunk in chunks:
+        out += splitter.feed(chunk)
+    return out
+
+
+def test_splitter_skips_the_first_group_and_flags_keyframes() -> None:
+    first, live, frame = _gop(b"stale"), _gop(b"key"), PACK + _pes(b"p")
+    splitter = PackSplitter(skip_first_group=True)
+    # A pack is only complete once the next one starts.
+    assert _collect(splitter, IMKH + first + live + frame + PACK) == [
+        (live, True),
+        (frame, False),
+    ]
+
+
+def test_splitter_keeps_everything_without_skip_and_reads_the_codec() -> None:
+    first, frame = _gop(b"key", 0x1B), PACK + _pes(b"p")
+    splitter = PackSplitter(skip_first_group=False)
+    assert _collect(splitter, first + frame + PACK) == [(first, True), (frame, False)]
+    assert splitter.codec == "h264"
 
 
 @pytest.mark.parametrize(("stream_type", "codec"), [(0x1B, "h264"), (0x24, "hevc"), (0x99, "hevc")])
-def test_scan_reads_the_codec_from_the_stream_map(stream_type: int, codec: str) -> None:
+def test_splitter_reads_the_codec_past_other_streams(stream_type: int, codec: str) -> None:
     audio = b"\x0f\xc0\x00\x02ab"  # an audio entry with 2 bytes of descriptors, listed first
-    ps = PACK + _psm(stream_type, audio) + _pes(b"v")
-    assert _scan(ps) == (None, codec)
+    splitter = PackSplitter(skip_first_group=False)
+    splitter.feed(PACK + _psm(stream_type, audio) + _pes(b"v") + PACK)
+    assert splitter.codec == codec
 
 
-def test_scan_keeps_the_default_when_the_stream_map_lists_no_video() -> None:
+def test_splitter_keeps_the_codec_when_the_stream_map_lists_no_video() -> None:
     entries = b"\x0f\xc0\x00\x00"  # audio only
     body = b"\x80\x01\x00\x00" + len(entries).to_bytes(2, "big") + entries
     psm = b"\x00\x00\x01\xbc" + len(body).to_bytes(2, "big") + body
-    assert _scan(PACK + psm)[1] == "hevc"
+    splitter = PackSplitter(skip_first_group=False)
+    splitter.feed(_gop(b"k", 0x1B) + PACK + psm + PACK)
+    assert splitter.codec == "h264"
 
 
-def test_scan_stops_at_a_truncated_pack_header_or_garbage() -> None:
-    assert _scan(_gop(b"v") + b"\x00\x00\x01\xba\x44\x00") == (None, "hevc")
-    assert _scan(_gop(b"v") + b"junk" + _gop(b"w")) == (None, "hevc")
+def test_splitter_reassembles_packs_split_anywhere() -> None:
+    stream = IMKH + _gop(b"a") + _gop(b"b") + PACK + _pes(b"c") + PACK
+    whole = _collect(PackSplitter(skip_first_group=False), stream)
+    for size in (1, 3, 7, 40):
+        chunks = [stream[i : i + size] for i in range(0, len(stream), size)]
+        assert _collect(PackSplitter(skip_first_group=False), *chunks) == whole
 
 
-def test_scan_ignores_start_codes_inside_payloads() -> None:
+def test_splitter_resyncs_after_garbage() -> None:
+    frame = PACK + _pes(b"p")
+    splitter = PackSplitter(skip_first_group=False)
+    out = _collect(splitter, _gop(b"k") + b"junk!" + b"more" + frame + PACK)
+    # The pack that holds the garbage is dropped; the next one comes through.
+    assert out == [(frame, False)]
+    # The pending pack runs into garbage too: dropped, and the next frame survives.
+    assert _collect(splitter, b"no start code here", frame, PACK) == [(frame, False)]
+
+
+def test_splitter_trusts_packet_lengths() -> None:
     fake_map = b"\x00\x00\x01\xbc\x00\x00"
-    assert _scan(_gop(fake_map) + _pes(b"v")) == (None, "hevc")
+    frame = PACK + _pes(fake_map)
+    assert _collect(PackSplitter(skip_first_group=False), frame + PACK) == [(frame, False)]
 
 
-def test_decrypt_ps_skips_the_clear_group_and_decrypts_the_rest(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_splitter_waits_for_the_whole_imkh_header() -> None:
+    splitter = PackSplitter(skip_first_group=False)
+    assert splitter.feed(b"IM") == []
+    assert splitter.feed(IMKH[2:20]) == []
+    frame = _gop(b"k")
+    assert splitter.feed(IMKH[20:] + frame + PACK) == [(frame, True)]
+
+
+def test_decrypt_packs_decrypts_together_and_cuts_back(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
     monkeypatch.setattr(
         "custom_components.ezviz_cloud.snapshot._decrypt",
-        lambda ps, code: calls.append((ps, code)) or b"decrypted",
+        lambda ps, code, codec: calls.append((ps, code, codec)) or ps.upper(),
     )
-    live = _gop(b"live", 0x1B)
-    assert decrypt_ps(IMKH + _gop(b"clear", 0x1B) + live, "SECRET") == (b"decrypted", "h264")
-    assert calls == [(live, "SECRET")]
-
-
-def test_decrypt_ps_without_code_keeps_everything() -> None:
-    ps = _gop(b"a") + _gop(b"b")
-    assert decrypt_ps(IMKH + ps, None) == (ps, "hevc")
-
-
-def test_decrypt_ps_needs_a_live_group() -> None:
-    with pytest.raises(EzvizCloudError, match="first live keyframe"):
-        decrypt_ps(IMKH + _gop(b"clear"), "SECRET")
+    assert decrypt_packs([b"ab", b"cde"], "KEY", "h264") == [b"AB", b"CDE"]
+    assert calls == [(b"abcde", "KEY", "h264")]
+    assert decrypt_packs([b"ab"], None, "hevc") == [b"ab"]
 
 
 def _ffmpeg(monkeypatch: pytest.MonkeyPatch, **communicate: object) -> dict:
@@ -123,7 +156,7 @@ async def test_ps_to_jpeg_raises_when_ffmpeg_decodes_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _ffmpeg(monkeypatch, return_value=(b"", b"Invalid data found"))
-    with pytest.raises(EzvizCloudError, match="Invalid data found"):
+    with pytest.raises(EzvizCloudDecodeError, match="Invalid data found"):
         await async_ps_to_jpeg(b"bad", "/usr/bin/ffmpeg")
 
 
@@ -187,18 +220,21 @@ _STREAM = "wss://vtm.example:20006/live?dev=BK1&chn=1&stream=2&checkCode=x&ssn=s
 _HELLO = _msg(aiohttp.WSMsgType.TEXT, json.dumps({"version": "1.0", "cipherSuite": "0"}))
 
 
-async def test_capture_sends_realplay_on_hello_and_buffers_video() -> None:
+async def _read(session: MagicMock, **kwargs: float) -> list[bytes]:
+    return [data async for data in async_iter_stream(session, _STREAM, **kwargs)]
+
+
+async def test_stream_sends_realplay_on_hello_and_yields_video() -> None:
     ws = _FakeWS(
         [
             _HELLO,
             _msg(aiohttp.WSMsgType.TEXT, json.dumps({"statusCode": 0, "errorCode": 1})),
-            _msg(aiohttp.WSMsgType.BINARY, b"IMKH" + b"\x00" * 36),
+            _msg(aiohttp.WSMsgType.BINARY, b"IMKH"),
             _msg(aiohttp.WSMsgType.BINARY, b"frame-bytes"),
         ]
     )
     session = _session(ws)
-    data = await async_capture_ps(session, _STREAM)
-    assert b"frame-bytes" in data
+    assert await _read(session) == [b"IMKH", b"frame-bytes"]
     assert session.ws_url.endswith("?version=0.1&cipherSuites=0")
     assert "/live" not in session.ws_url.split("?")[0]
     (sent,) = ws.sent
@@ -208,7 +244,7 @@ async def test_capture_sends_realplay_on_hello_and_buffers_video() -> None:
     assert "ssn=ssn" in payload["url"]
 
 
-async def test_capture_raises_on_stream_error() -> None:
+async def test_stream_raises_on_stream_error() -> None:
     ws = _FakeWS(
         [
             _HELLO,
@@ -219,54 +255,48 @@ async def test_capture_raises_on_stream_error() -> None:
         ]
     )
     with pytest.raises(EzvizCloudError, match="5405"):
-        await async_capture_ps(_session(ws), _STREAM)
+        await _read(_session(ws))
 
 
-async def test_capture_raises_when_no_video_arrives() -> None:
-    ws = _FakeWS([_HELLO])
+async def test_stream_raises_when_no_video_arrives() -> None:
     with pytest.raises(EzvizCloudError, match="asleep"):
-        await async_capture_ps(_session(ws), _STREAM)
+        await _read(_session(_FakeWS([_HELLO])))
 
 
-async def test_capture_skips_non_json_text_and_stops_at_max_bytes() -> None:
+async def test_stream_skips_non_json_text() -> None:
     ws = _FakeWS(
-        [
-            _msg(aiohttp.WSMsgType.TEXT, "not json"),
-            _HELLO,
-            _msg(aiohttp.WSMsgType.BINARY, b"a" * 10),
-            _msg(aiohttp.WSMsgType.BINARY, b"never read"),
-        ]
+        [_msg(aiohttp.WSMsgType.TEXT, "not json"), _HELLO, _msg(aiohttp.WSMsgType.BINARY, b"a")]
     )
-    assert await async_capture_ps(_session(ws), _STREAM, max_bytes=5) == b"a" * 10
+    assert await _read(_session(ws)) == [b"a"]
 
 
-async def test_capture_stops_when_the_receive_times_out() -> None:
-    ws = _FakeWS([_HELLO, _msg(aiohttp.WSMsgType.BINARY, b"frame")])
+async def test_stream_ends_when_the_receive_times_out() -> None:
+    ws = _FakeWS([])
     ws.receive = AsyncMock(side_effect=[_HELLO, _msg(aiohttp.WSMsgType.BINARY, b"f"), TimeoutError])
-    assert await async_capture_ps(_session(ws), _STREAM) == b"f"
+    assert await _read(_session(ws)) == [b"f"]
+    # Before any video, the wait is the wake timeout; after it, the idle timeout.
+    timeouts = [c.kwargs["timeout"] for c in ws.receive.await_args_list]
+    assert timeouts == [20.0, 20.0, 10.0]
 
 
-async def test_capture_gives_up_after_the_wake_timeout() -> None:
+async def test_stream_gives_up_after_the_wake_timeout() -> None:
+    ws = _FakeWS([])
+    ws.receive = AsyncMock(side_effect=[_HELLO, TimeoutError])
     with pytest.raises(EzvizCloudError, match="asleep"):
-        await async_capture_ps(_session(_FakeWS([_HELLO])), _STREAM, wake_timeout=0)
+        await _read(_session(ws), wake_timeout=0)
 
 
-async def test_capture_stops_after_capture_seconds() -> None:
-    ws = _FakeWS(
-        [_HELLO, _msg(aiohttp.WSMsgType.BINARY, b"f"), _msg(aiohttp.WSMsgType.BINARY, b"late")]
-    )
-    assert await async_capture_ps(_session(ws), _STREAM, capture_seconds=0) == b"f"
-
-
-async def test_capture_wraps_websocket_errors() -> None:
+async def test_stream_wraps_websocket_errors() -> None:
     session = MagicMock()
     session.ws_connect = MagicMock(side_effect=aiohttp.ClientError("refused"))
     with pytest.raises(EzvizCloudError, match="refused"):
-        await async_capture_ps(session, _STREAM)
+        await _read(session)
 
 
-def test_decrypt_uses_pyezvizapi(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(("codec", "header"), [("hevc", 2), ("h264", 1)])
+def test_decrypt_uses_pyezvizapi(monkeypatch: pytest.MonkeyPatch, codec: str, header: int) -> None:
     monkeypatch.setattr(
-        "pyezvizapi.cloud_stream.decrypt_hikvision_ps_video", lambda ps, code: ps + code.encode()
+        "pyezvizapi.cloud_stream.decrypt_hikvision_ps_video",
+        lambda ps, code, nalu_header_size: ps + code.encode() + bytes([nalu_header_size]),
     )
-    assert _decrypt(b"ps-", "KEY") == b"ps-KEY"
+    assert _decrypt(b"ps-", "KEY", codec) == b"ps-KEY" + bytes([header])

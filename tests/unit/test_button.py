@@ -1,9 +1,8 @@
-"""The per-camera photo and clip buttons: wiring, storage and error handling."""
+"""The per-camera photo and clip buttons: reading the shared stream, storage, errors."""
 
 from __future__ import annotations
 
 import asyncio
-import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -17,21 +16,19 @@ from custom_components.ezviz_cloud.button import (
     EzvizCloudCapture,
     EzvizCloudCaptureByMode,
     EzvizCloudRecordClip,
-    _ffmpeg_binary,
 )
 from custom_components.ezviz_cloud.button import async_setup_entry as setup_button
-from custom_components.ezviz_cloud.const import CONF_CODES, DATA_RECORDER
+from custom_components.ezviz_cloud.const import DATA_RECORDER
 from custom_components.ezviz_cloud.recording import RecordingStore
 
 CAM = Camera("BK1", 1, "Door", True)
+STREAM = MagicMock(codec="hevc")
 
 
 def _data() -> EzvizCloudData:
-    manager = MagicMock()
-    manager.api.domain = "https://d"
-    manager.async_get_token = AsyncMock(return_value=MagicMock(token="tok"))
-    manager.api.async_live_url = AsyncMock(return_value="wss://vtm/live?dev=BK1")
-    return EzvizCloudData(manager, [CAM], {"BK1": "view"})
+    data = EzvizCloudData(MagicMock(), [CAM], {"BK1": "view"})
+    data.streams["BK1"] = STREAM
+    return data
 
 
 def _hass(tmp_path: Path) -> MagicMock:
@@ -47,13 +44,10 @@ def _hass(tmp_path: Path) -> MagicMock:
 
 def _entity(
     hass: MagicMock,
-    code: str | None,
     cls: type[EzvizCloudButton] = EzvizCloudCapture,
     lock: asyncio.Lock | None = None,
 ) -> EzvizCloudButton:
-    options = {CONF_CODES: {"BK1": code}} if code is not None else {}
-    entry = MagicMock(runtime_data=_data(), options=options)
-    entity = cls(entry.runtime_data, CAM, entry, lock or asyncio.Lock())
+    entity = cls(_data(), CAM, lock or asyncio.Lock())
     entity.hass = hass
     return entity
 
@@ -73,16 +67,16 @@ async def test_setup_adds_photo_clip_and_by_mode_buttons_per_camera() -> None:
     assert entities[2]._buttons == {"photo": entities[0], "record": entities[1]}
 
 
-def _pipeline(capture: AsyncMock | None = None):  # type: ignore[no-untyped-def]
-    """Patch the capture pipeline; returns the patches in order."""
+def _pipeline(read: AsyncMock | None = None, grab: AsyncMock | None = None):  # type: ignore[no-untyped-def]
+    """Patch the shared stream readers and ffmpeg; returns the patches in order."""
     return (
         patch(
-            "custom_components.ezviz_cloud.button.async_capture_ps",
-            capture or AsyncMock(return_value=b"ps-bytes"),
+            "custom_components.ezviz_cloud.button.async_grab_jpeg",
+            grab or AsyncMock(return_value=b"\xff\xd8grab"),
         ),
         patch(
-            "custom_components.ezviz_cloud.button.decrypt_ps",
-            return_value=(b"clear-ps", "hevc"),
+            "custom_components.ezviz_cloud.button.async_read",
+            read or AsyncMock(return_value=b"clear-ps"),
         ),
         patch(
             "custom_components.ezviz_cloud.button.async_ps_to_jpeg",
@@ -92,48 +86,36 @@ def _pipeline(capture: AsyncMock | None = None):  # type: ignore[no-untyped-def]
             "custom_components.ezviz_cloud.button.async_ps_to_mp4",
             AsyncMock(return_value=b"mp4-bytes"),
         ),
-        patch(
-            "custom_components.ezviz_cloud.button._ffmpeg_binary", return_value="/usr/bin/ffmpeg"
-        ),
-        patch("custom_components.ezviz_cloud.button.async_get_clientsession"),
+        patch("custom_components.ezviz_cloud.button.ffmpeg_binary", return_value="/usr/bin/ffmpeg"),
         patch("custom_components.ezviz_cloud.button.async_dispatcher_send"),
     )
 
 
-async def test_photo_press_captures_and_saves_photo(tmp_path: Path) -> None:
-    entity = _entity(_hass(tmp_path), "SECRET")
-    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline()
-    with (
-        p_capture as capture,
-        p_decrypt as decrypt,
-        p_jpeg as to_jpeg,
-        p_mp4 as to_mp4,
-        p_bin,
-        p_session,
-        p_dispatch as dispatch,
-    ):
+async def test_photo_press_grabs_from_the_shared_stream(tmp_path: Path) -> None:
+    hass = _hass(tmp_path)
+    entity = _entity(hass)
+    p_grab, p_read, p_jpeg, p_mp4, p_bin, p_dispatch = _pipeline()
+    with p_grab as grab, p_read as read, p_jpeg, p_mp4 as to_mp4, p_bin, p_dispatch as dispatch:
         await entity.async_press()
 
-    entity._data.manager.api.async_live_url.assert_awaited_once_with("tok", "BK1", 1, "SECRET")
-    assert capture.await_args.args[1] == "wss://vtm/live?dev=BK1"
-    decrypt.assert_called_once_with(b"ps-bytes", "SECRET")
-    assert to_jpeg.await_args.args == (b"clear-ps", "/usr/bin/ffmpeg")
+    grab.assert_awaited_once_with(hass, STREAM)
+    read.assert_not_awaited()
     to_mp4.assert_not_awaited()
     folder = tmp_path / "ezviz_cloud" / "BK1"
-    assert [p.read_bytes() for p in folder.iterdir()] == [b"\xff\xd8jpeg"]
+    assert [p.read_bytes() for p in folder.iterdir()] == [b"\xff\xd8grab"]
     dispatch.assert_called_once()
 
 
 async def test_clip_press_saves_video_and_photo(tmp_path: Path) -> None:
-    entity = _entity(_hass(tmp_path), "SECRET", EzvizCloudRecordClip)
-    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline()
-    with p_capture as capture, p_decrypt, p_jpeg, p_mp4 as to_mp4, p_bin, p_session, p_dispatch:
+    entity = _entity(_hass(tmp_path), EzvizCloudRecordClip)
+    p_grab, p_read, p_jpeg, p_mp4, p_bin, p_dispatch = _pipeline()
+    with p_grab, p_read as read, p_jpeg as to_jpeg, p_mp4 as to_mp4, p_bin, p_dispatch:
         await entity.async_press()
 
-    # 15 s by default, plus the 3 s clear start that is skipped.
-    assert capture.await_args.kwargs["capture_seconds"] == 18
-    assert capture.await_args.kwargs["max_bytes"] == 18 * 700_000
+    # 15 s by default.
+    read.assert_awaited_once_with(STREAM, 15, 15 * 700_000)
     assert to_mp4.await_args.args == (b"clear-ps", "hevc", "/usr/bin/ffmpeg")
+    assert to_jpeg.await_args.args == (b"clear-ps", "/usr/bin/ffmpeg")
     folder = tmp_path / "ezviz_cloud" / "BK1"
     (video,) = folder.glob("*.mp4")
     (photo,) = folder.glob("*.jpg")
@@ -143,35 +125,27 @@ async def test_clip_press_saves_video_and_photo(tmp_path: Path) -> None:
     assert not list(folder.glob("*.part"))
 
 
-async def test_press_without_code_passes_none(tmp_path: Path) -> None:
-    entity = _entity(_hass(tmp_path), None)
-    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline()
-    with p_capture, p_decrypt as decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch:
-        await entity.async_press()
-    assert entity._data.manager.api.async_live_url.await_args.args[3] is None
-    assert decrypt.call_args.args[1] is None
-
-
-async def test_press_while_the_other_button_streams_is_ignored(tmp_path: Path) -> None:
+async def test_press_while_the_other_button_captures_is_ignored(tmp_path: Path) -> None:
     lock = asyncio.Lock()
-    photo = _entity(_hass(tmp_path), "SECRET", EzvizCloudCapture, lock)
-    clip = _entity(_hass(tmp_path), "SECRET", EzvizCloudRecordClip, lock)
+    photo = _entity(_hass(tmp_path), EzvizCloudCapture, lock)
+    clip = _entity(_hass(tmp_path), EzvizCloudRecordClip, lock)
     release = asyncio.Event()
 
-    async def slow_capture(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+    async def slow_read(*_args):  # type: ignore[no-untyped-def]
         await release.wait()
         return b"ps"
 
-    capture = AsyncMock(side_effect=slow_capture)
-    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline(capture)
-    with p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch:
+    read = AsyncMock(side_effect=slow_read)
+    p_grab, p_read, p_jpeg, p_mp4, p_bin, p_dispatch = _pipeline(read)
+    with p_grab as grab, p_read, p_jpeg, p_mp4, p_bin, p_dispatch:
         first = asyncio.create_task(clip.async_press())
         await asyncio.sleep(0)
         await photo.async_press()
         await clip.async_press()
         release.set()
         await first
-    assert capture.await_count == 1
+    assert read.await_count == 1
+    grab.assert_not_awaited()
 
 
 @pytest.mark.parametrize(
@@ -180,17 +154,15 @@ async def test_press_while_the_other_button_streams_is_ignored(tmp_path: Path) -
 async def test_press_wraps_capture_errors(
     tmp_path: Path, cls: type[EzvizCloudButton], what: str
 ) -> None:
-    entity = _entity(_hass(tmp_path), "SECRET", cls)
-    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline(
-        AsyncMock(side_effect=EzvizCloudError("asleep"))
-    )
+    entity = _entity(_hass(tmp_path), cls)
+    failing = AsyncMock(side_effect=EzvizCloudError("asleep"))
+    p_grab, p_read, p_jpeg, p_mp4, p_bin, p_dispatch = _pipeline(failing, failing)
     with (
-        p_capture,
-        p_decrypt,
+        p_grab,
+        p_read,
         p_jpeg,
         p_mp4,
         p_bin,
-        p_session,
         p_dispatch as dispatch,
         pytest.raises(HomeAssistantError, match=f"{what} of BK1: asleep"),
     ):
@@ -198,27 +170,13 @@ async def test_press_wraps_capture_errors(
     dispatch.assert_not_called()
 
 
-async def test_press_wraps_token_errors(tmp_path: Path) -> None:
-    entity = _entity(_hass(tmp_path), "SECRET")
-    entity._data.manager.async_get_token = AsyncMock(side_effect=EzvizCloudError("no token"))
-    with pytest.raises(HomeAssistantError, match="no token"):
-        await entity.async_press()
-
-
-def test_ffmpeg_binary_comes_from_ha_ffmpeg_manager() -> None:
-    fake = MagicMock()
-    fake.get_ffmpeg_manager.return_value.binary = "/opt/ffmpeg"
-    with patch.dict(sys.modules, {"homeassistant.components.ffmpeg": fake}):
-        assert _ffmpeg_binary(MagicMock()) == "/opt/ffmpeg"
-
-
 async def test_clip_follows_the_cameras_clip_length(tmp_path: Path) -> None:
-    entity = _entity(_hass(tmp_path), "SECRET", EzvizCloudRecordClip)
+    entity = _entity(_hass(tmp_path), EzvizCloudRecordClip)
     entity._data.clip_seconds["BK1"] = 60
-    p_capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch = _pipeline()
-    with p_capture as capture, p_decrypt, p_jpeg, p_mp4, p_bin, p_session, p_dispatch:
+    p_grab, p_read, p_jpeg, p_mp4, p_bin, p_dispatch = _pipeline()
+    with p_grab, p_read as read, p_jpeg, p_mp4, p_bin, p_dispatch:
         await entity.async_press()
-    assert capture.await_args.kwargs["capture_seconds"] == 63
+    assert read.await_args.args[1] == 60
 
 
 @pytest.mark.parametrize(

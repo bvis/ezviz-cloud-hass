@@ -6,11 +6,13 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+from homeassistant.components.camera.const import CameraEntityFeature
 from homeassistant.util import dt as dt_util
 
 from custom_components.ezviz_cloud import EzvizCloudData
 from custom_components.ezviz_cloud.api import Camera
-from custom_components.ezviz_cloud.camera import EzvizCloudLastPhoto
+from custom_components.ezviz_cloud.camera import EzvizCloudLastPhoto, EzvizCloudLive
 from custom_components.ezviz_cloud.camera import async_setup_entry as setup_camera
 from custom_components.ezviz_cloud.const import DATA_RECORDER
 from custom_components.ezviz_cloud.number import EzvizCloudClipLength
@@ -46,20 +48,20 @@ async def test_platforms_add_one_entity_per_camera() -> None:
     for setup, cls in (
         (setup_select, EzvizCloudMode),
         (setup_number, EzvizCloudClipLength),
-        (setup_camera, EzvizCloudLastPhoto),
+        (setup_camera, (EzvizCloudLastPhoto, EzvizCloudLive)),
         (setup_sensor, EzvizCloudLastRecording),
     ):
         add = MagicMock()
         await setup(MagicMock(), entry, add)
         (entities,) = add.call_args.args
-        assert [type(e) for e in entities] == [cls]
+        assert [type(e) for e in entities] == list(cls if isinstance(cls, tuple) else (cls,))
 
 
 def test_device_and_ids() -> None:
     entity = EzvizCloudMode(_data(), CAM)
     assert entity.unique_id == "BK1_mode"
     assert entity.device_info == {
-        "identifiers": {("ezviz_cloud", "BK1")},
+        "identifiers": {("ezviz_cloud", "BK1"), ("ezviz", "BK1")},
         "name": "Door",
         "manufacturer": "EZVIZ",
         "serial_number": "BK1",
@@ -160,3 +162,25 @@ async def test_sensor_reports_latest_recording(tmp_path: Path) -> None:
         "video": f"media-source://media_source/local/ezviz_cloud/BK1/{stem}.mp4",
         "photo": None,
     }
+
+
+@pytest.mark.parametrize(
+    ("api", "url"),
+    [
+        (MagicMock(use_ssl=False, port=8123), "http://127.0.0.1:8123"),
+        (MagicMock(use_ssl=True, port=443), "https://127.0.0.1:443"),
+        (None, "http://127.0.0.1:8123"),
+    ],
+)
+async def test_live_camera_streams_from_the_local_view(
+    tmp_path: Path, api: MagicMock | None, url: str
+) -> None:
+    data = _data()
+    data.streams["BK1"] = MagicMock(token="tok")
+    entity = EzvizCloudLive(data, CAM)
+    entity.hass = _hass(tmp_path)
+    entity.hass.config.api = api
+    assert entity.unique_id == "BK1_live"
+    assert entity.supported_features & CameraEntityFeature.STREAM
+    assert await entity.stream_source() == f"{url}/api/ezviz_cloud/live/BK1?token=tok"
+    assert await entity.async_camera_image() is None

@@ -7,7 +7,9 @@ blueprint:
     *View*, a photo in *Photo*, a clip in *Record*, so an automation can switch
     the mode when nobody is home. The photo (and the clip) is saved to *Media →
     EZVIZ Cloud*, in the camera's folder, and the photo is shown by the camera's *Last photo*
-    entity. Optionally, send it to a phone with the Home Assistant app.
+    entity. Optionally, send it to a phone with the Home Assistant app, or
+    send the live view instead: the notification goes out right away and the
+    iPhone app plays the camera when you open it.
   domain: automation
   source_url: https://github.com/bvis/ezviz-cloud-hass/blob/main/blueprints/automation/ezviz_cloud/capture_photo.yaml
   homeassistant:
@@ -53,6 +55,19 @@ blueprint:
           filter:
             - integration: ezviz_cloud
               domain: camera
+    live_camera:
+      name: Live camera (optional)
+      description: >-
+        The same camera's *Live* entity. When set, the notification is sent
+        before the capture and carries the live view instead of the photo (the
+        iPhone app plays it; Android shows a picture). The capture shares the
+        same stream.
+      default: ""
+      selector:
+        entity:
+          filter:
+            - integration: ezviz_cloud
+              domain: camera
     notify_message:
       name: Notification text
       default: Someone is at the door
@@ -68,6 +83,7 @@ variables:
   capture_button: !input capture_button
   notify_action: !input notify_action
   photo_camera: !input photo_camera
+  live_camera: !input live_camera
   notify_message: !input notify_message
 
 triggers:
@@ -81,6 +97,16 @@ conditions:
     value_template: "{{ trigger_state == '' or trigger.to_state.state == trigger_state }}"
 
 actions:
+  # Live view: notify first, so the stream can be opened while the capture runs.
+  - if:
+      - condition: template
+        value_template: "{{ notify_action != '' and live_camera != '' }}"
+    then:
+      - action: "{{ notify_action }}"
+        data:
+          message: "{{ notify_message }}"
+          data:
+            entity_id: "{{ live_camera }}"
   # Waits until the capture is saved: about 15-20 s for a photo while the camera
   # wakes up, the clip length plus about 15 s for a clip.
   - action: button.press
@@ -88,7 +114,7 @@ actions:
       entity_id: !input capture_button
   - if:
       - condition: template
-        value_template: "{{ notify_action != '' }}"
+        value_template: "{{ notify_action != '' and live_camera == '' }}"
     then:
       - action: "{{ notify_action }}"
         data:

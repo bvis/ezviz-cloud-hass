@@ -45,7 +45,7 @@
       },
       "codes": {
         "title": "Verification codes",
-        "description": "Pick a camera and type the verification code from its label (six capital letters). The card uses it so the code doesn't have to be in the dashboard. Cameras marked ✓ already have one; leave the code empty to remove it.",
+        "description": "Pick a camera and type the verification code from its label (six capital letters). The card uses it so the code doesn't have to be in the dashboard. Cameras marked ✓ already have one; leave the code empty to remove it. Saving checks the code against the camera's video.",
         "data": {
           "serial": "Camera",
           "code": "Verification code"
@@ -59,6 +59,9 @@
           "max_per_camera": "Maximum per camera (0 = no limit)"
         }
       }
+    },
+    "error": {
+      "invalid_code": "The camera's video doesn't decode with this code. Check it on the camera's label."
     },
     "abort": {
       "not_loaded": "The integration isn't loaded. Fix the account first, then try again.",
@@ -85,6 +88,9 @@
     "camera": {
       "last_photo": {
         "name": "Last photo"
+      },
+      "live": {
+        "name": "Live"
       }
     },
     "sensor": {
