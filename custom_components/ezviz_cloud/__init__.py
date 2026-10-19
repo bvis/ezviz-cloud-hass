@@ -142,7 +142,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
     registry = dr.async_get(hass)
     for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
         own = {i for i in device.identifiers if i[0] == DOMAIN}
-        if own and own != device.identifiers:
+        # A camera gone from the account, or now set up from another one, keeps no
+        # device here. An empty list is more likely a hiccup than an empty account.
+        if listed and own and not any(serial in cameras for _, serial in own):
+            registry.async_update_device(device.id, remove_config_entry_id=entry.entry_id)
+        elif own and own != device.identifiers:
             registry.async_update_device(device.id, new_identifiers=own)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -173,6 +177,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
     entry.async_on_unload(async_track_time_interval(hass, _cleanup_all, timedelta(hours=24)))
     await _cleanup_all()
     return True
+
+
+async def async_remove_config_entry_device(
+    _hass: HomeAssistant, entry: EzvizCloudConfigEntry, device: dr.DeviceEntry
+) -> bool:
+    """Let the user delete a device whose camera the account no longer lists."""
+    serials = {c.serial for c in entry.runtime_data.cameras}
+    return not any(domain == DOMAIN and serial in serials for domain, serial in device.identifiers)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -> bool:
