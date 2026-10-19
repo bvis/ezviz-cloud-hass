@@ -40,6 +40,9 @@ _LOGGER = logging.getLogger(__name__)
 # Caps the read at about twice the card's 1.5 Mbps; 60 s is about 40 MB.
 _CLIP_BYTES_PER_SECOND = 700_000
 
+# Nothing is polled; the buttons serialize per camera with their own lock.
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     _hass: HomeAssistant,
