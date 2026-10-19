@@ -12,6 +12,9 @@ from .api import Camera
 from .const import CLIP_MAX_SECONDS, CLIP_MIN_SECONDS, DEFAULT_CLIP_SECONDS
 from .entity import EzvizCloudEntity
 
+# Nothing is polled.
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     _hass: HomeAssistant,

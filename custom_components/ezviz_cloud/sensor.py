@@ -12,6 +12,9 @@ from .api import Camera
 from .const import DATA_RECORDER, signal_recorded
 from .entity import EzvizCloudEntity
 
+# Nothing is polled.
+PARALLEL_UPDATES = 0
+
 
 async def async_setup_entry(
     _hass: HomeAssistant,
