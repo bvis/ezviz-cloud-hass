@@ -26,12 +26,13 @@ from .api import Camera, EzvizCloudError
 from .const import (
     DATA_RECORDER,
     DEFAULT_CLIP_SECONDS,
+    DOMAIN,
     MODE_PHOTO,
     MODE_RECORD,
     signal_recorded,
 )
 from .entity import EzvizCloudEntity
-from .live import LiveStream, async_grab_jpeg, async_read, ffmpeg_binary
+from .live import EzvizCloudCooldownError, LiveStream, async_grab_jpeg, async_read, ffmpeg_binary
 from .snapshot import async_ps_to_jpeg, async_ps_to_mp4
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,8 +77,11 @@ class EzvizCloudButton(EzvizCloudEntity, ButtonEntity):
             try:
                 await self._save(self._data.streams[self._serial])
             except EzvizCloudError as err:
+                cooling = isinstance(err, EzvizCloudCooldownError)
                 raise HomeAssistantError(
-                    f"Could not capture a {self._what} of {self._serial}: {err}"
+                    translation_domain=DOMAIN,
+                    translation_key="camera_resting" if cooling else f"{self._what}_failed",
+                    translation_placeholders={"serial": self._serial, "error": str(err)},
                 ) from err
             async_dispatcher_send(self.hass, signal_recorded(self._serial))
             _LOGGER.debug("Captured a %s of %s", self._what, self._serial)

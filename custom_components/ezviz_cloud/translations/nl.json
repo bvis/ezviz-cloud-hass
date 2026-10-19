@@ -109,5 +109,19 @@
         "name": "Vastleggen volgens modus"
       }
     }
+  },
+  "exceptions": {
+    "photo_failed": {
+      "message": "Kon geen foto van {serial} maken: {error}"
+    },
+    "clip_failed": {
+      "message": "Kon geen clip van {serial} opnemen: {error}"
+    },
+    "camera_resting": {
+      "message": "{serial} gaf zojuist geen beeld. Probeer het over een minuut opnieuw."
+    },
+    "cannot_connect": {
+      "message": "Kan EZVIZ Open Platform niet bereiken: {error}"
+    }
   }
 }

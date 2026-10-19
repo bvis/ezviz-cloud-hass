@@ -110,7 +110,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
     except EzvizCloudAuthError as err:
         raise ConfigEntryError(f"EZVIZ rejected the appKey/appSecret: {err}") from err
     except EzvizCloudError as err:
-        raise ConfigEntryNotReady(str(err)) from err
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="cannot_connect",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
     # A camera shared with another configured account stays with that one: its
     # entities, recordings and folder are keyed by serial.

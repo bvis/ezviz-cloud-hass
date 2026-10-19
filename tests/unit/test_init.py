@@ -160,6 +160,13 @@ async def test_setup_entry_errors(kwargs: dict, raised: type[Exception]) -> None
         await _setup_entry(**kwargs)
 
 
+async def test_setup_entry_not_ready_is_translated() -> None:
+    with pytest.raises(ConfigEntryNotReady) as raised:
+        await _setup_entry(side_effect=EzvizCloudError("down"))
+    assert raised.value.translation_key == "cannot_connect"
+    assert raised.value.translation_placeholders == {"error": "down"}
+
+
 async def test_unload() -> None:
     hass = _hass()
     entry = MagicMock()
