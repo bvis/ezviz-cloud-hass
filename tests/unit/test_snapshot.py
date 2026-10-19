@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock
@@ -300,3 +301,11 @@ def test_decrypt_uses_pyezvizapi(monkeypatch: pytest.MonkeyPatch, codec: str, he
         lambda ps, code, nalu_header_size: ps + code.encode() + bytes([nalu_header_size]),
     )
     assert _decrypt(b"ps-", "KEY", codec) == b"ps-KEY" + bytes([header])
+
+
+def test_pyezvizapi_still_has_the_decrypt_we_call() -> None:
+    from pyezvizapi.cloud_stream import decrypt_hikvision_ps_video  # type: ignore[attr-defined]
+
+    params = inspect.signature(decrypt_hikvision_ps_video).parameters
+    assert "nalu_header_size" in params
+    assert len([p for p in params.values() if p.default is p.empty]) == 2

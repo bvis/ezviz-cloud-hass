@@ -22,7 +22,7 @@ dev = [
     "numpy",
     "PyTurboJPEG",
     # Server-side photo capture decrypts the stream with this (manifest requirement).
-    "pyezvizapi>=1.0.5.0",
+    "pyezvizapi>=1.0.5.0,<2",
 ]
 
 [tool.pytest.ini_options]
