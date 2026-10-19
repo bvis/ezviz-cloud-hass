@@ -58,6 +58,96 @@ async def test_maps_errors(exc: Exception, error: str) -> None:
     assert result["errors"] == {"base": error}
 
 
+def _entry_flow(source: str) -> tuple[EzvizCloudConfigFlow, MagicMock]:
+    flow = _flow()
+    entry = MagicMock(data={"region": "eu", "app_key": "key", "app_secret": "old"})
+    getter = "_get_reauth_entry" if source == "reauth" else "_get_reconfigure_entry"
+    setattr(flow, getter, MagicMock(return_value=entry))
+    flow._abort_if_unique_id_mismatch = MagicMock()  # type: ignore[method-assign]
+    flow.async_update_reload_and_abort = MagicMock(  # type: ignore[method-assign]
+        return_value={"type": "abort"}
+    )
+    return flow, entry
+
+
+async def test_reauth_asks_for_the_secret_only() -> None:
+    flow, _ = _entry_flow("reauth")
+    result = await flow.async_step_reauth({})
+    assert result["type"] == "form"
+    assert result["step_id"] == "reauth_confirm"
+    assert list(result["data_schema"].schema) == ["app_secret"]
+    assert result["description_placeholders"] == {"app_key": "key"}
+
+
+async def test_reauth_updates_the_secret() -> None:
+    flow, entry = _entry_flow("reauth")
+    with (
+        patch("custom_components.ezviz_cloud.config_flow.async_get_clientsession"),
+        patch("custom_components.ezviz_cloud.config_flow.EzvizCloudApi") as api_cls,
+    ):
+        api_cls.return_value.async_get_token = AsyncMock()
+        await flow.async_step_reauth_confirm({"app_secret": " new "})
+    assert api_cls.call_args.args[1:] == ("https://ieuopen.ezvizlife.com", "key", "new")
+    flow.async_update_reload_and_abort.assert_called_once_with(
+        entry, data={"region": "eu", "app_key": "key", "app_secret": "new"}
+    )
+
+
+async def test_reauth_shows_the_error_when_rejected() -> None:
+    flow, _ = _entry_flow("reauth")
+    with (
+        patch("custom_components.ezviz_cloud.config_flow.async_get_clientsession"),
+        patch("custom_components.ezviz_cloud.config_flow.EzvizCloudApi") as api_cls,
+    ):
+        api_cls.return_value.async_get_token = AsyncMock(side_effect=EzvizCloudAuthError("bad"))
+        result = await flow.async_step_reauth_confirm({"app_secret": "new"})
+    assert result["errors"] == {"base": "invalid_auth"}
+    flow.async_update_reload_and_abort.assert_not_called()
+
+
+async def test_reconfigure_suggests_all_but_the_secret() -> None:
+    flow, _ = _entry_flow("reconfigure")
+    result = await flow.async_step_reconfigure()
+    assert result["step_id"] == "reconfigure"
+    suggested = {
+        str(k): k.description["suggested_value"]
+        for k in result["data_schema"].schema
+        if k.description and "suggested_value" in k.description
+    }
+    assert suggested == {"region": "eu", "app_key": "key"}
+
+
+async def test_reconfigure_updates_region_and_title() -> None:
+    flow, entry = _entry_flow("reconfigure")
+    with (
+        patch("custom_components.ezviz_cloud.config_flow.async_get_clientsession"),
+        patch("custom_components.ezviz_cloud.config_flow.EzvizCloudApi") as api_cls,
+    ):
+        api_cls.return_value.async_get_token = AsyncMock()
+        await flow.async_step_reconfigure({"region": "us", "app_key": "key", "app_secret": "s"})
+    flow.async_set_unique_id.assert_awaited_once_with("key")
+    flow._abort_if_unique_id_mismatch.assert_called_once()
+    flow.async_update_reload_and_abort.assert_called_once_with(
+        entry,
+        title="EZVIZ Cloud (US)",
+        data={"region": "us", "app_key": "key", "app_secret": "s"},
+    )
+
+
+async def test_reconfigure_keeps_the_form_on_error() -> None:
+    flow, _ = _entry_flow("reconfigure")
+    with (
+        patch("custom_components.ezviz_cloud.config_flow.async_get_clientsession"),
+        patch("custom_components.ezviz_cloud.config_flow.EzvizCloudApi") as api_cls,
+    ):
+        api_cls.return_value.async_get_token = AsyncMock(side_effect=EzvizCloudError("down"))
+        result = await flow.async_step_reconfigure(
+            {"region": "us", "app_key": "key", "app_secret": "s"}
+        )
+    assert result["errors"] == {"base": "cannot_connect"}
+    flow.async_update_reload_and_abort.assert_not_called()
+
+
 def _options_flow(
     state: ConfigEntryState = ConfigEntryState.LOADED,
     cameras: list[Camera] | None = None,

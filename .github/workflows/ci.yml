@@ -34,7 +34,7 @@ jobs:
           docker run --rm -v "$(pwd)/coverage:/coverage" ezviz-cloud-dev \
             pytest tests/unit/ -v \
               --cov=custom_components/ezviz_cloud \
-              --cov-fail-under=90 \
+              --cov-fail-under=95 \
               --cov-report=term-missing \
               --cov-report=json:/coverage/coverage.json
       - name: Coverage summary

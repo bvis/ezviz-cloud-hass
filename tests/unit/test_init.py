@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
-from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from custom_components import ezviz_cloud
 from custom_components.ezviz_cloud.api import Camera, EzvizCloudAuthError, EzvizCloudError
@@ -74,6 +74,7 @@ async def _setup_entry(
     cameras_effect: Exception | None = None,
     others: list[MagicMock] | None = None,
     devices: list[MagicMock] | None = None,
+    cameras: list[Camera] | None = None,
 ) -> tuple[MagicMock, MagicMock]:
     hass = _hass()
     hass.config_entries.async_entries.return_value = others or []
@@ -96,7 +97,9 @@ async def _setup_entry(
         manager.async_get_token = AsyncMock(
             side_effect=side_effect, return_value=MagicMock(token="at.x")
         )
-        manager.api.async_get_cameras = AsyncMock(side_effect=cameras_effect, return_value=CAMERAS)
+        manager.api.async_get_cameras = AsyncMock(
+            side_effect=cameras_effect, return_value=CAMERAS if cameras is None else cameras
+        )
         assert await ezviz_cloud.async_setup_entry(hass, entry)
         serials = [c.serial for c in entry.runtime_data.cameras]
         assert track.call_args.args[2] == timedelta(hours=24)
@@ -106,12 +109,13 @@ async def _setup_entry(
         # Setup cleans every camera; a saved recording cleans only its own camera.
         assert [c.args[0] for c in recorder.store.cleanup.call_args_list] == serials
         send.assert_not_called()
-        recorder.store.cleanup.reset_mock()
-        # Deleting old recordings refreshes that camera's entities.
-        recorder.store.cleanup.return_value = 1
-        await connect.call_args_list[-1].args[2]()
-        assert [c.args[0] for c in recorder.store.cleanup.call_args_list] == serials[-1:]
-        send.assert_called_once_with(hass, f"ezviz_cloud_recorded_{serials[-1]}")
+        if serials:
+            recorder.store.cleanup.reset_mock()
+            # Deleting old recordings refreshes that camera's entities.
+            recorder.store.cleanup.return_value = 1
+            await connect.call_args_list[-1].args[2]()
+            assert [c.args[0] for c in recorder.store.cleanup.call_args_list] == serials[-1:]
+            send.assert_called_once_with(hass, f"ezviz_cloud_recorded_{serials[-1]}")
     return hass, entry
 
 
@@ -139,6 +143,32 @@ async def test_setup_entry_drops_the_identifier_0_10_0_borrowed() -> None:
     )
 
 
+async def test_setup_entry_removes_devices_of_cameras_no_longer_listed() -> None:
+    gone = MagicMock(id="d1", identifiers={("ezviz_cloud", "OLD")})
+    kept = MagicMock(id="d2", identifiers={("ezviz_cloud", "BK1")})
+    hass, _ = await _setup_entry(devices=[gone, kept])
+    hass.device_registry.async_update_device.assert_called_once_with(
+        "d1", remove_config_entry_id="this"
+    )
+
+
+async def test_setup_entry_keeps_devices_when_the_list_comes_back_empty() -> None:
+    gone = MagicMock(id="d1", identifiers={("ezviz_cloud", "OLD")})
+    hass, entry = await _setup_entry(devices=[gone], cameras=[])
+    hass.device_registry.async_update_device.assert_not_called()
+    assert entry.runtime_data.cameras == []
+
+
+@pytest.mark.parametrize(("serial", "removable"), [("BK1", False), ("OLD", True)])
+async def test_only_unlisted_devices_can_be_deleted(serial: str, removable: bool) -> None:
+    entry = MagicMock()
+    entry.runtime_data.cameras = CAMERAS
+    device = MagicMock(identifiers={("ezviz_cloud", serial)})
+    assert (
+        await ezviz_cloud.async_remove_config_entry_device(MagicMock(), entry, device) is removable
+    )
+
+
 async def test_setup_entry_skips_cameras_of_another_account() -> None:
     other = MagicMock(entry_id="other", state=ConfigEntryState.LOADED)
     other.runtime_data.cameras = [Camera("BK1", 1, "Door", True)]
@@ -150,7 +180,7 @@ async def test_setup_entry_skips_cameras_of_another_account() -> None:
 @pytest.mark.parametrize(
     ("kwargs", "raised"),
     [
-        ({"side_effect": EzvizCloudAuthError("bad")}, ConfigEntryError),
+        ({"side_effect": EzvizCloudAuthError("bad")}, ConfigEntryAuthFailed),
         ({"side_effect": EzvizCloudError("down")}, ConfigEntryNotReady),
         ({"cameras_effect": EzvizCloudError("down")}, ConfigEntryNotReady),
     ],
@@ -158,6 +188,13 @@ async def test_setup_entry_skips_cameras_of_another_account() -> None:
 async def test_setup_entry_errors(kwargs: dict, raised: type[Exception]) -> None:
     with pytest.raises(raised):
         await _setup_entry(**kwargs)
+
+
+async def test_setup_entry_not_ready_is_translated() -> None:
+    with pytest.raises(ConfigEntryNotReady) as raised:
+        await _setup_entry(side_effect=EzvizCloudError("down"))
+    assert raised.value.translation_key == "cannot_connect"
+    assert raised.value.translation_placeholders == {"error": "down"}
 
 
 async def test_unload() -> None:

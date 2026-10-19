@@ -10,7 +10,33 @@
           "app_secret": "AppSecret"
         },
         "data_description": {
-          "region": "La région de votre compte EZVIZ. Un AppKey ne fonctionne que dans sa propre région."
+          "region": "La région de votre compte EZVIZ. Un AppKey ne fonctionne que dans sa propre région.",
+          "app_key": "Affiché à côté de l'app dans la console développeur.",
+          "app_secret": "Le secret de l'app, à côté de l'AppKey dans la console développeur."
+        }
+      },
+      "reauth_confirm": {
+        "title": "EZVIZ a refusé l'AppSecret",
+        "description": "EZVIZ n'accepte plus l'AppSecret de l'app {app_key}. Collez l'AppSecret actuel depuis la console développeur.",
+        "data": {
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "app_secret": "Le secret de l'app, à côté de l'AppKey dans la console développeur."
+        }
+      },
+      "reconfigure": {
+        "title": "App EZVIZ Open Platform",
+        "description": "Changez la région ou l'AppSecret. Pour utiliser une autre app, ajoutez de nouveau l'intégration.",
+        "data": {
+          "region": "Région",
+          "app_key": "AppKey",
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "region": "La région de votre compte EZVIZ. Un AppKey ne fonctionne que dans sa propre région.",
+          "app_key": "Affiché à côté de l'app dans la console développeur.",
+          "app_secret": "Le secret de l'app, à côté de l'AppKey dans la console développeur."
         }
       }
     },
@@ -19,7 +45,10 @@
       "cannot_connect": "Impossible de joindre EZVIZ Open Platform."
     },
     "abort": {
-      "already_configured": "Cet AppKey est déjà configuré."
+      "already_configured": "Cet AppKey est déjà configuré.",
+      "reauth_successful": "L'AppSecret a été mis à jour.",
+      "reconfigure_successful": "Les paramètres ont été mis à jour.",
+      "unique_id_mismatch": "C'est un autre AppKey. Pour utiliser une autre app, ajoutez de nouveau l'intégration."
     }
   },
   "selector": {
@@ -49,6 +78,10 @@
         "data": {
           "serial": "Caméra",
           "code": "Code de vérification"
+        },
+        "data_description": {
+          "serial": "Les caméras de ce compte EZVIZ.",
+          "code": "Six lettres majuscules sur l'étiquette de la caméra. Laissez vide pour supprimer le code enregistré."
         }
       },
       "recordings": {
@@ -57,6 +90,10 @@
         "data": {
           "retention_days": "Conserver (jours)",
           "max_per_camera": "Maximum par caméra (0 = sans limite)"
+        },
+        "data_description": {
+          "retention_days": "Les enregistrements plus anciens sont supprimés.",
+          "max_per_camera": "Au-delà de ce nombre par caméra, les plus anciens sont supprimés. 0 les garde tous."
         }
       }
     },
@@ -108,6 +145,20 @@
       "capture_by_mode": {
         "name": "Capturer selon le mode"
       }
+    }
+  },
+  "exceptions": {
+    "photo_failed": {
+      "message": "Impossible de prendre une photo de {serial} : {error}"
+    },
+    "clip_failed": {
+      "message": "Impossible d'enregistrer un clip de {serial} : {error}"
+    },
+    "camera_resting": {
+      "message": "{serial} n'a pas diffusé de vidéo il y a un instant. Réessayez dans une minute."
+    },
+    "cannot_connect": {
+      "message": "Impossible de joindre EZVIZ Open Platform : {error}"
     }
   }
 }

@@ -13,7 +13,7 @@ from homeassistant.components.http.server import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -108,9 +108,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
         token = await manager.async_get_token()
         listed = await manager.api.async_get_cameras(token.token)
     except EzvizCloudAuthError as err:
-        raise ConfigEntryError(f"EZVIZ rejected the appKey/appSecret: {err}") from err
+        raise ConfigEntryAuthFailed(f"EZVIZ rejected the appKey/appSecret: {err}") from err
     except EzvizCloudError as err:
-        raise ConfigEntryNotReady(str(err)) from err
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="cannot_connect",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
     # A camera shared with another configured account stays with that one: its
     # entities, recordings and folder are keyed by serial.
@@ -142,7 +146,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
     registry = dr.async_get(hass)
     for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
         own = {i for i in device.identifiers if i[0] == DOMAIN}
-        if own and own != device.identifiers:
+        # A camera gone from the account, or now set up from another one, keeps no
+        # device here. An empty list is more likely a hiccup than an empty account.
+        if listed and own and not any(serial in cameras for _, serial in own):
+            registry.async_update_device(device.id, remove_config_entry_id=entry.entry_id)
+        elif own and own != device.identifiers:
             registry.async_update_device(device.id, new_identifiers=own)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -173,6 +181,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
     entry.async_on_unload(async_track_time_interval(hass, _cleanup_all, timedelta(hours=24)))
     await _cleanup_all()
     return True
+
+
+async def async_remove_config_entry_device(
+    _hass: HomeAssistant, entry: EzvizCloudConfigEntry, device: dr.DeviceEntry
+) -> bool:
+    """Let the user delete a device whose camera the account no longer lists."""
+    serials = {c.serial for c in entry.runtime_data.cameras}
+    return not any(domain == DOMAIN and serial in serials for domain, serial in device.identifiers)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -> bool:

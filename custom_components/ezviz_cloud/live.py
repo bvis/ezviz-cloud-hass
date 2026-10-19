@@ -42,6 +42,12 @@ LINGER = 20
 # After an open that gave no video, HA's stream worker retries on a backoff for as
 # long as a viewer is attached: refuse new opens for this long instead.
 COOLDOWN = 60
+
+
+class EzvizCloudCooldownError(EzvizCloudError):
+    """The camera failed to stream less than ``COOLDOWN`` seconds ago."""
+
+
 # A reader this far behind (about 30 s of video) is dropped instead of buffered.
 _MAX_BACKLOG = 450
 # A clip reads at most this long past its length before giving up on a stalled stream.
@@ -87,7 +93,7 @@ class LiveStream:
         """
         loop = asyncio.get_running_loop()
         if loop.time() < self._cooldown_until:
-            raise EzvizCloudError("The camera did not stream a moment ago; try again later")
+            raise EzvizCloudCooldownError("The camera did not stream a moment ago; try again later")
         queue: asyncio.Queue[_Item] = asyncio.Queue()
         self._readers.add(queue)
         if self._linger is not None:

@@ -80,7 +80,7 @@ Your cameras show up under **My resources → Equipment list**. If a camera isn'
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=ezviz_cloud)
 
-Settings → Devices & services → Add integration → **EZVIZ Cloud**. Choose your region and paste the AppKey and AppSecret. The credentials are checked before the entry is created.
+Settings → Devices & services → Add integration → **EZVIZ Cloud**. Choose your region and paste the AppKey and AppSecret. The credentials are checked before the entry is created. To change the region or the AppSecret later, use **Reconfigure** on the integration. If EZVIZ stops accepting the AppSecret, Home Assistant asks for the new one.
 
 ### 3. Store the verification codes
 
@@ -284,6 +284,17 @@ The live camera and the *Capture photo* and *Record clip* buttons open the same 
 | The live camera doesn't play in the browser or the phone | It can't play H.265. Use Safari, Chrome or Edge, or the Home Assistant app on a phone that supports it. |
 | A camera has no folder in *Media → EZVIZ Cloud* | It hasn't saved anything yet, or everything it saved was deleted by the retention. Press *Capture photo* to check. |
 | The clip doesn't play in the browser | The browser can't play H.265. Open it in Safari, Chrome or Edge, or in the Home Assistant app. |
+
+## Removal
+
+1. Settings → Devices & services → EZVIZ Cloud → ⋮ → **Delete**.
+2. In HACS, open EZVIZ Cloud → ⋮ → **Remove**, then restart Home Assistant.
+3. Photos and recordings stay in `<media>/ezviz_cloud/`. Delete that folder if you don't want them.
+4. Optionally, delete the application in the EZVIZ developer console so its AppKey stops working.
+
+## Quality scale
+
+[`quality_scale.yaml`](custom_components/ezviz_cloud/quality_scale.yaml) lists every rule of Home Assistant's [integration quality scale](https://developers.home-assistant.io/docs/core/integration-quality-scale/) with its status here. Rules marked `todo` link to the issue that tracks them.
 
 ## Support
 

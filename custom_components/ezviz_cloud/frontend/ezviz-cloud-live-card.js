@@ -11,10 +11,13 @@
 // The stream is played by EZVIZ's own web player (ezuikit-js), which wakes
 // battery cameras and decrypts encrypted video in the browser. The player
 // looks up its DOM with document.getElementById, which cannot reach inside
-// Home Assistant's shadow roots, so it runs in an iframe srcdoc.
+// Home Assistant's shadow roots, so it runs in an iframe srcdoc. The iframe is
+// sandboxed: the player gets an origin of its own, apart from Home Assistant's.
 
 const EZUIKIT_PKG = "https://cdn.jsdelivr.net/npm/ezuikit-js@9.0.23";
 const EZUIKIT = `${EZUIKIT_PKG}/ezuikit.js`;
+// sha384 of that file; update it with the version.
+const EZUIKIT_SRI = "sha384-uWLBO1GO3kUJVgYp3b5/mSbRBMNdgwqBSEfX4MlOhC6V55QKMhMBxkFD2bOD93bC";
 // The player fetches its WebAssembly decoder (~3 MB) from EZVIZ's static host
 // unless told otherwise; that host can be slow enough from Europe to miss the
 // video timeout. The npm package ships the same files, so take them from jsDelivr.
@@ -494,11 +497,15 @@ class EzvizCloudLiveCard extends HTMLElement {
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "border:0;width:100%;height:100%;position:absolute;inset:0";
     iframe.setAttribute("allow", "autoplay; fullscreen");
+    iframe.setAttribute("sandbox", "allow-scripts");
     // The player runs inside the iframe; it reports back with postMessage.
     iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8">
 <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}#v,#v canvas{width:100%!important;height:100%!important}#v{width:1280px!important;height:720px!important;transform-origin:0 0}</style>
-<script>const send=(m)=>parent.postMessage({ezvizCloud:m},"*");</script>
-<script src="${EZUIKIT}" onerror="send({errorKey:'player_load_failed'})"></script></head><body><div id="v"></div><script>
+<script>const send=(m)=>parent.postMessage({ezvizCloud:m},"*");
+// A sandboxed frame has no storage, and the player expects some: give it one in memory.
+const mem=new Map();const store={getItem:(k)=>(mem.has(k)?mem.get(k):null),setItem:(k,v)=>{mem.set(k,String(v));},removeItem:(k)=>{mem.delete(k);},clear:()=>mem.clear(),key:(i)=>[...mem.keys()][i]??null,get length(){return mem.size;}};
+for(const n of["localStorage","sessionStorage"]){try{window[n];}catch(e){Object.defineProperty(window,n,{value:store,configurable:true});}}</script>
+<script src="${EZUIKIT}" integrity="${EZUIKIT_SRI}" crossorigin="anonymous" onerror="send({errorKey:'player_load_failed'})"></script></head><body><div id="v"></div><script>
 if(window.EZUIKit){
 const o=${opts};
 const E=EZUIKit.EZUIKitPlayer.EVENTS;

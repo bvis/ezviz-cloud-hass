@@ -14,6 +14,7 @@ from aiohttp import web
 from custom_components.ezviz_cloud import live
 from custom_components.ezviz_cloud.api import Camera, EzvizCloudError
 from custom_components.ezviz_cloud.live import (
+    EzvizCloudCooldownError,
     LiveStream,
     LiveStreamView,
     async_grab_jpeg,
@@ -130,7 +131,7 @@ async def test_failed_open_reaches_readers_and_starts_a_cooldown(upstream: _Upst
     upstream.queue.put_nowait(EzvizCloudError("5405"))
     with pytest.raises(EzvizCloudError, match="5405"):
         await anext(stream.frames())
-    with pytest.raises(EzvizCloudError, match="a moment ago"):
+    with pytest.raises(EzvizCloudCooldownError, match="a moment ago"):
         await anext(stream.frames())
     assert upstream.opens == 1
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib
 import json
 import re
 import tomllib
@@ -115,3 +116,9 @@ async def test_capture_blueprint_is_a_valid_automation(
     assert press["target"]["entity_id"] == ["button.door_capture_photo"]
     assert live["then"][0]["data"]["data"]["entity_id"].template == "{{ live_camera }}"
     assert "image" in photo["then"][0]["data"]["data"].template
+
+
+@pytest.mark.parametrize("platform", ["button", "camera", "number", "select", "sensor"])
+def test_platforms_set_parallel_updates(platform: str) -> None:
+    module = importlib.import_module(f"custom_components.ezviz_cloud.{platform}")
+    assert module.PARALLEL_UPDATES == 0
