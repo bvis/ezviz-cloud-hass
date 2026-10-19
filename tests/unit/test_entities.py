@@ -61,7 +61,7 @@ def test_device_and_ids() -> None:
     entity = EzvizCloudMode(_data(), CAM)
     assert entity.unique_id == "BK1_mode"
     assert entity.device_info == {
-        "identifiers": {("ezviz_cloud", "BK1"), ("ezviz", "BK1")},
+        "identifiers": {("ezviz_cloud", "BK1")},
         "name": "Door",
         "manufacturer": "EZVIZ",
         "serial_number": "BK1",

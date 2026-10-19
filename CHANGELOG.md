@@ -5,13 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-10-19
+
+### Fixed
+- 0.10.0 said the camera would share its device with the official EZVIZ integration. Home Assistant keeps devices per integration, so it didn't, and the device was left with the official integration's identifier. That identifier is removed when the integration starts. **Requests to EZVIZ:** none.
+
 ## [0.10.0] - 2026-10-19
 
 ### Added
 - **Live camera entity.** Each camera gets a *Live* camera (`camera.<name>_live`) that plays in any camera card, in the iPhone app's notifications and in HomeKit or other bridges, through go2rtc or Home Assistant's HLS player. The video is the camera's own, not re-encoded. Its picture is the last saved photo, so a dashboard never wakes the camera. **Requests to EZVIZ:** one live address request plus the live stream while someone watches, and 20 seconds after.
 - **Live view in the doorbell notification.** The blueprint takes an optional *Live camera*: the notification goes out right away, before the capture, and opening it on an iPhone plays the camera. **Requests to EZVIZ:** none extra; the capture and the live view share the stream.
 - **Verification codes are checked when saved.** A code that doesn't decrypt the camera's video is refused; if the camera doesn't answer, the code is saved unchecked. **Requests to EZVIZ:** one live stream per code saved.
-- With the official EZVIZ integration also installed, the camera is one device instead of two.
 - README section on limitations.
 
 ### Changed

@@ -15,6 +15,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
@@ -136,6 +137,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
             return code
 
         entry.runtime_data.streams[camera.serial] = LiveStream(hass, manager, camera, _code)
+    # 0.10.0 gave each device the official ezviz integration's identifier too, to
+    # share its device; Home Assistant keeps devices per integration, so drop it.
+    registry = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
+        own = {i for i in device.identifiers if i[0] == DOMAIN}
+        if own and own != device.identifiers:
+            registry.async_update_device(device.id, new_identifiers=own)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     store = hass.data[DATA_RECORDER].store

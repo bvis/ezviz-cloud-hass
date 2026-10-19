@@ -26,9 +26,7 @@ class EzvizCloudEntity(Entity):
         self._attr_translation_key = key
         self._attr_unique_id = f"{camera.serial}_{key}"
         self._attr_device_info = DeviceInfo(
-            # The official ezviz integration keys its devices the same way, so with
-            # both installed the camera is one device, not two.
-            identifiers={(DOMAIN, camera.serial), ("ezviz", camera.serial)},
+            identifiers={(DOMAIN, camera.serial)},
             name=camera.name,
             manufacturer="EZVIZ",
             serial_number=camera.serial,

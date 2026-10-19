@@ -73,6 +73,7 @@ async def _setup_entry(
     side_effect: Exception | None = None,
     cameras_effect: Exception | None = None,
     others: list[MagicMock] | None = None,
+    devices: list[MagicMock] | None = None,
 ) -> tuple[MagicMock, MagicMock]:
     hass = _hass()
     hass.config_entries.async_entries.return_value = others or []
@@ -87,7 +88,10 @@ async def _setup_entry(
         patch.object(ezviz_cloud, "async_track_time_interval") as track,
         patch.object(ezviz_cloud, "async_dispatcher_connect") as connect,
         patch.object(ezviz_cloud, "async_dispatcher_send") as send,
+        patch.object(ezviz_cloud, "dr") as dr,
     ):
+        dr.async_entries_for_config_entry.return_value = devices or []
+        hass.device_registry = dr.async_get.return_value
         manager = manager_cls.return_value
         manager.async_get_token = AsyncMock(
             side_effect=side_effect, return_value=MagicMock(token="at.x")
@@ -123,6 +127,16 @@ async def test_setup_entry_keeps_data_and_forwards_platforms() -> None:
     assert data.streams["BK2"]._code() == "SECRET"
     assert data.streams["BK1"]._code() is None
     hass.config_entries.async_forward_entry_setups.assert_awaited_once()
+
+
+async def test_setup_entry_drops_the_identifier_0_10_0_borrowed() -> None:
+    borrowed = MagicMock(id="d1", identifiers={("ezviz_cloud", "BK1"), ("ezviz", "BK1")})
+    clean = MagicMock(id="d2", identifiers={("ezviz_cloud", "BK2")})
+    foreign = MagicMock(id="d3", identifiers={("other", "X")})
+    hass, _ = await _setup_entry(devices=[borrowed, clean, foreign])
+    hass.device_registry.async_update_device.assert_called_once_with(
+        "d1", new_identifiers={("ezviz_cloud", "BK1")}
+    )
 
 
 async def test_setup_entry_skips_cameras_of_another_account() -> None:
