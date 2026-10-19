@@ -10,7 +10,33 @@
           "app_secret": "AppSecret"
         },
         "data_description": {
-          "region": "La regió del teu compte d'EZVIZ. Un AppKey només funciona a la seva pròpia regió."
+          "region": "La regió del teu compte d'EZVIZ. Un AppKey només funciona a la seva pròpia regió.",
+          "app_key": "Apareix al costat de l'app a la consola de desenvolupadors.",
+          "app_secret": "El secret de l'app, al costat de l'AppKey a la consola de desenvolupadors."
+        }
+      },
+      "reauth_confirm": {
+        "title": "EZVIZ ha rebutjat l'AppSecret",
+        "description": "EZVIZ ja no accepta l'AppSecret de l'app {app_key}. Enganxa l'AppSecret actual des de la consola de desenvolupadors.",
+        "data": {
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "app_secret": "El secret de l'app, al costat de l'AppKey a la consola de desenvolupadors."
+        }
+      },
+      "reconfigure": {
+        "title": "App d'EZVIZ Open Platform",
+        "description": "Canvia la regió o l'AppSecret. Per fer servir una altra app, torna a afegir la integració.",
+        "data": {
+          "region": "Regió",
+          "app_key": "AppKey",
+          "app_secret": "AppSecret"
+        },
+        "data_description": {
+          "region": "La regió del teu compte d'EZVIZ. Un AppKey només funciona a la seva pròpia regió.",
+          "app_key": "Apareix al costat de l'app a la consola de desenvolupadors.",
+          "app_secret": "El secret de l'app, al costat de l'AppKey a la consola de desenvolupadors."
         }
       }
     },
@@ -19,7 +45,10 @@
       "cannot_connect": "No s'ha pogut connectar amb EZVIZ Open Platform."
     },
     "abort": {
-      "already_configured": "Aquest AppKey ja està configurat."
+      "already_configured": "Aquest AppKey ja està configurat.",
+      "reauth_successful": "S'ha actualitzat l'AppSecret.",
+      "reconfigure_successful": "S'ha actualitzat la configuració.",
+      "unique_id_mismatch": "És un altre AppKey. Per fer servir una altra app, torna a afegir la integració."
     }
   },
   "selector": {
@@ -49,6 +78,10 @@
         "data": {
           "serial": "Càmera",
           "code": "Codi de verificació"
+        },
+        "data_description": {
+          "serial": "Les càmeres d'aquest compte EZVIZ.",
+          "code": "Sis lletres majúscules de l'etiqueta de la càmera. Deixa-ho buit per esborrar el codi desat."
         }
       },
       "recordings": {
@@ -57,6 +90,10 @@
         "data": {
           "retention_days": "Conserva (dies)",
           "max_per_camera": "Màxim per càmera (0 = sense límit)"
+        },
+        "data_description": {
+          "retention_days": "Les gravacions més antigues s'esborren.",
+          "max_per_camera": "Quan una càmera en té més, s'esborren les més antigues. 0 les desa totes."
         }
       }
     },

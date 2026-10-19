@@ -13,7 +13,7 @@ from homeassistant.components.http.server import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -108,7 +108,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
         token = await manager.async_get_token()
         listed = await manager.api.async_get_cameras(token.token)
     except EzvizCloudAuthError as err:
-        raise ConfigEntryError(f"EZVIZ rejected the appKey/appSecret: {err}") from err
+        raise ConfigEntryAuthFailed(f"EZVIZ rejected the appKey/appSecret: {err}") from err
     except EzvizCloudError as err:
         raise ConfigEntryNotReady(str(err)) from err
 
