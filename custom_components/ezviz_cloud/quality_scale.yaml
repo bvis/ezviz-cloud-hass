@@ -1,0 +1,92 @@
+rules:
+  # Bronze
+  action-setup:
+    status: exempt
+    comment: The integration registers no service actions.
+  appropriate-polling:
+    status: exempt
+    comment: Nothing is polled; tokens and the camera list are fetched on demand.
+  brands: done
+  common-modules: done
+  config-flow-test-coverage: done
+  config-flow:
+    status: todo
+    comment: Only region has a data_description (#12).
+  dependency-transparency: done
+  docs-actions:
+    status: exempt
+    comment: The integration registers no service actions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  entity-event-setup: done
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry: done
+
+  # Silver
+  action-exceptions: done
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable:
+    status: exempt
+    comment: Entities show local files and the selected mode; the live camera opens a stream on demand and reports errors per request.
+  integration-owner: done
+  log-when-unavailable:
+    status: exempt
+    comment: Nothing is polled, so there is no connection state to log.
+  parallel-updates:
+    status: todo
+    comment: "#10"
+  reauthentication-flow:
+    status: todo
+    comment: "#7"
+  test-coverage: done
+
+  # Gold
+  devices: done
+  diagnostics: done
+  discovery-update-info:
+    status: exempt
+    comment: Cloud API with per-account credentials; nothing to discover.
+  discovery:
+    status: exempt
+    comment: Cloud API with per-account credentials; nothing to discover.
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices: done
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: New cameras are added when the card editor or the options list the cameras. Polling the account for them would add requests to EZVIZ, which the integration avoids.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: exempt
+    comment: Every entity is part of the camera's normal use.
+  entity-translations: done
+  exception-translations:
+    status: todo
+    comment: "#9"
+  icon-translations: done
+  reconfiguration-flow:
+    status: todo
+    comment: "#11"
+  repair-issues:
+    status: exempt
+    comment: No condition is detected server side that the user could repair; a missing verification code is reported by the card where it happens.
+  stale-devices:
+    status: todo
+    comment: "#8"
+
+  # Platinum
+  async-dependency: done
+  inject-websession: done
+  strict-typing: done
