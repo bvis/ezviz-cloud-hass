@@ -19,6 +19,7 @@ from custom_components.ezviz_cloud.button import (
 )
 from custom_components.ezviz_cloud.button import async_setup_entry as setup_button
 from custom_components.ezviz_cloud.const import DATA_RECORDER
+from custom_components.ezviz_cloud.live import EzvizCloudCooldownError
 from custom_components.ezviz_cloud.recording import RecordingStore
 
 CAM = Camera("BK1", 1, "Door", True)
@@ -164,10 +165,30 @@ async def test_press_wraps_capture_errors(
         p_mp4,
         p_bin,
         p_dispatch as dispatch,
-        pytest.raises(HomeAssistantError, match=f"{what} of BK1: asleep"),
+        pytest.raises(HomeAssistantError) as raised,
     ):
         await entity.async_press()
     dispatch.assert_not_called()
+    assert raised.value.translation_domain == "ezviz_cloud"
+    assert raised.value.translation_key == f"{what}_failed"
+    assert raised.value.translation_placeholders == {"serial": "BK1", "error": "asleep"}
+
+
+async def test_press_right_after_a_failed_stream_says_to_wait(tmp_path: Path) -> None:
+    entity = _entity(_hass(tmp_path), EzvizCloudCapture)
+    failing = AsyncMock(side_effect=EzvizCloudCooldownError("later"))
+    p_grab, p_read, p_jpeg, p_mp4, p_bin, p_dispatch = _pipeline(failing, failing)
+    with (
+        p_grab,
+        p_read,
+        p_jpeg,
+        p_mp4,
+        p_bin,
+        p_dispatch,
+        pytest.raises(HomeAssistantError) as raised,
+    ):
+        await entity.async_press()
+    assert raised.value.translation_key == "camera_resting"
 
 
 async def test_clip_follows_the_cameras_clip_length(tmp_path: Path) -> None:

@@ -146,5 +146,19 @@
         "name": "Je nach Modus aufnehmen"
       }
     }
+  },
+  "exceptions": {
+    "photo_failed": {
+      "message": "Foto von {serial} konnte nicht aufgenommen werden: {error}"
+    },
+    "clip_failed": {
+      "message": "Clip von {serial} konnte nicht aufgenommen werden: {error}"
+    },
+    "camera_resting": {
+      "message": "{serial} hat eben kein Video gesendet. Versuche es in einer Minute erneut."
+    },
+    "cannot_connect": {
+      "message": "EZVIZ Open Platform nicht erreichbar: {error}"
+    }
   }
 }

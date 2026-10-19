@@ -146,5 +146,19 @@
         "name": "Captura segons el mode"
       }
     }
+  },
+  "exceptions": {
+    "photo_failed": {
+      "message": "No s'ha pogut capturar una foto de {serial}: {error}"
+    },
+    "clip_failed": {
+      "message": "No s'ha pogut gravar un clip de {serial}: {error}"
+    },
+    "camera_resting": {
+      "message": "{serial} no ha emès vídeo fa un moment. Torna-ho a provar d'aquí a un minut."
+    },
+    "cannot_connect": {
+      "message": "No s'ha pogut connectar amb EZVIZ Open Platform: {error}"
+    }
   }
 }

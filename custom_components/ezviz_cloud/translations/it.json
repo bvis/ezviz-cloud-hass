@@ -146,5 +146,19 @@
         "name": "Cattura secondo la modalità"
       }
     }
+  },
+  "exceptions": {
+    "photo_failed": {
+      "message": "Impossibile scattare una foto di {serial}: {error}"
+    },
+    "clip_failed": {
+      "message": "Impossibile registrare una clip di {serial}: {error}"
+    },
+    "camera_resting": {
+      "message": "{serial} non ha trasmesso video poco fa. Riprova tra un minuto."
+    },
+    "cannot_connect": {
+      "message": "Impossibile raggiungere EZVIZ Open Platform: {error}"
+    }
   }
 }

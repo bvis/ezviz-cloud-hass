@@ -146,5 +146,19 @@
         "name": "Capture by mode"
       }
     }
+  },
+  "exceptions": {
+    "photo_failed": {
+      "message": "Could not capture a photo of {serial}: {error}"
+    },
+    "clip_failed": {
+      "message": "Could not record a clip of {serial}: {error}"
+    },
+    "camera_resting": {
+      "message": "{serial} didn't stream a moment ago. Try again in a minute."
+    },
+    "cannot_connect": {
+      "message": "Could not reach the EZVIZ Open Platform: {error}"
+    }
   }
 }
