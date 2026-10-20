@@ -6,6 +6,7 @@
 [![Validate with hassfest](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/hassfest.yaml)
 [![HACS Validation](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/validate.yaml/badge.svg)](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/validate.yaml)
 [![License: MIT](https://img.shields.io/github/license/bvis/ezviz-cloud-hass.svg)](LICENSE)
+[![Quality scale: Platinum (self-assessed)](https://img.shields.io/badge/quality%20scale-platinum%20(self--assessed)-8a9ba8)](custom_components/ezviz_cloud/quality_scale.yaml)
 
 > **Disclaimer**: This is an **unofficial** integration, not affiliated with or endorsed by EZVIZ. It uses the public [EZVIZ Open Platform](https://ieuopen.ezviz.com) API with your own developer credentials.
 
