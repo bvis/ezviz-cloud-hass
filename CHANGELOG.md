@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-10-20
+
+### Added
+- **Re-authentication.** When EZVIZ rejects the AppKey or AppSecret, Home Assistant asks for the new secret instead of failing to load. **Requests to EZVIZ:** one token request when the form is submitted, same as setup.
+- **Reconfigure.** *Reconfigure* on the integration changes the credentials or region without removing it. **Requests to EZVIZ:** one token request when the form is submitted.
+- Every setup and options field has a help text.
+- `quality_scale.yaml` with the status of each Home Assistant quality scale rule, and a README section on removing the integration.
+
+### Changed
+- The card's player runs in a sandboxed iframe with an origin of its own, and the player script is checked against its hash. **Requests to EZVIZ:** none changed.
+- Errors shown in Home Assistant (button presses, setup) are translated. **Requests to EZVIZ:** none.
+- Devices of cameras no longer in the EZVIZ account are removed at startup, and can be deleted by hand from the device page. **Requests to EZVIZ:** none; it uses the camera list setup already fetches.
+- `pyezvizapi` is bounded below 2.
+
+### Fixed
+- The live view could give up with "No video from the camera after 60 s" while the player was still downloading its decoder from EZVIZ's static host, which can be very slow from Europe. The decoder now comes from jsDelivr with the player. **Requests to EZVIZ:** none added; the decoder download moves to jsDelivr.
+
 ## [0.10.1] - 2026-10-19
 
 ### Fixed
