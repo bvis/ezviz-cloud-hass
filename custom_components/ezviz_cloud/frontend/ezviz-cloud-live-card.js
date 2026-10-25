@@ -489,7 +489,7 @@ class EzvizCloudLiveCard extends HTMLElement {
     const code = this._config.code || auth.code;
     const opts = JSON.stringify({
       accessToken: auth.access_token,
-      url: `ezopen://${code ? `${code}@` : ""}open.ezviz.com/${serial}/${channel}.live`,
+      url: `ezopen://${code ? `${code}@` : ""}${auth.ezopen_host || "open.ezviz.com"}/${serial}/${channel}.live`,
       env: { domain: auth.domain },
       staticPath: EZUIKIT_STATIC,
       language: "en",

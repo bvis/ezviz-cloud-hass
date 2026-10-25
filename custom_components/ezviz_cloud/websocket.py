@@ -61,6 +61,7 @@ async def ws_get_token(
     result = {
         "access_token": token.token,
         "domain": manager.api.domain,
+        "ezopen_host": manager.api.ezopen_host,
         "expires_at": token.expires_at.isoformat(),
     }
     if code := entry.options.get(CONF_CODES, {}).get(serial):

@@ -48,6 +48,8 @@ class EzvizCloudApi:
     ) -> None:
         self._session = session
         self.domain = domain
+        # Host inside ezopen:// addresses: the China platform rejects the global one.
+        self.ezopen_host = "open.ys7.com" if domain.endswith("ys7.com") else "open.ezviz.com"
         self._app_key = app_key
         self._app_secret = app_secret
 
@@ -106,7 +108,7 @@ class EzvizCloudApi:
         self, access_token: str, serial: str, channel: int, code: str | None
     ) -> str:
         """Return a camera's live WebSocket URL, with its session token appended."""
-        ezopen = f"ezopen://{code + '@' if code else ''}open.ezviz.com/{serial}/{channel}.live"
+        ezopen = f"ezopen://{code + '@' if code else ''}{self.ezopen_host}/{serial}/{channel}.live"
         body = await self._post(
             "/api/lapp/live/url/ezopen",
             {

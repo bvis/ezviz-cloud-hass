@@ -27,6 +27,7 @@ def _entry(
 ) -> MagicMock:
     entry = MagicMock(entry_id=entry_id, state=state, options={"codes": codes or {}})
     entry.runtime_data.manager.api.domain = "https://ieuopen.ezvizlife.com"
+    entry.runtime_data.manager.api.ezopen_host = "open.ezviz.com"
     entry.runtime_data.manager.async_get_token = AsyncMock(return_value=AccessToken("at.x", EXPIRY))
     return entry
 
@@ -47,6 +48,7 @@ async def test_returns_token_of_the_only_loaded_entry() -> None:
         {
             "access_token": "at.x",
             "domain": "https://ieuopen.ezvizlife.com",
+            "ezopen_host": "open.ezviz.com",
             "expires_at": EXPIRY.isoformat(),
         },
     )

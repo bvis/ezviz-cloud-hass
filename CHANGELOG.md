@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1] - 2026-10-25
+
+### Fixed
+- Live view never started on China (cn) accounts, and photo capture stopped at `10001 ezopen协议格式有误`: the `ezopen://` address always used the global host `open.ezviz.com`, which the China platform rejects. It now follows the account region (`open.ys7.com` for cn). Capture on cn may still fail later in the stream; that is tracked in #23. **Requests to EZVIZ:** none changed (#23).
+
 ## [0.11.0] - 2026-10-20
 
 ### Added

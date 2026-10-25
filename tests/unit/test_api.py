@@ -115,6 +115,13 @@ async def test_live_url_without_code() -> None:
     assert session.post.call_args.kwargs["data"]["ezopen"] == "ezopen://open.ezviz.com/BK1/1.live"
 
 
+async def test_live_url_uses_the_china_host_on_cn() -> None:
+    api, session = _api({"code": "200", "data": {"url": "wss://vtm/live?x", "token": "t"}})
+    api = EzvizCloudApi(session, "https://open.ys7.com", "k", "s")
+    await api.async_live_url("at.x", "BK1", 1, None)
+    assert session.post.call_args.kwargs["data"]["ezopen"] == "ezopen://open.ys7.com/BK1/1.live"
+
+
 async def test_live_url_reports_platform_error() -> None:
     api, _ = _api({"code": "60019", "msg": "nope"})
     with pytest.raises(EzvizCloudError, match="60019"):
