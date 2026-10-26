@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from homeassistant.components.camera import Camera as CameraEntity
 from homeassistant.components.camera.const import CameraEntityFeature
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import EzvizCloudConfigEntry, EzvizCloudData
@@ -58,6 +58,22 @@ class EzvizCloudLive(EzvizCloudLastPhoto):
 
     _key = "live"
     _attr_supported_features = CameraEntityFeature.STREAM
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._data.streams[self._serial].on_no_video = self._stop_stream_worker
+
+    async def async_will_remove_from_hass(self) -> None:
+        self._data.streams[self._serial].on_no_video = None
+        await super().async_will_remove_from_hass()
+
+    @callback
+    def _stop_stream_worker(self) -> None:
+        # HA's stream worker retries a source that never gave a segment until HA
+        # restarts, even with nobody watching (#24): stop it. Opening the camera
+        # again starts it anew.
+        if self.stream is not None:
+            self.hass.async_create_task(self.stream.stop())
 
     async def stream_source(self) -> str:
         # ponytail: loopback to HA's own port; behind HA's TLS, go2rtc and the stream

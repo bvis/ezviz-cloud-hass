@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.2] - 2026-10-26
+
+### Fixed
+- When the live camera entity got no picture from the camera, Home Assistant kept retrying the stream after the player was closed, until the next restart, and each retry woke the camera again. The integration now stops Home Assistant's stream when a camera gives no video, and waits a minute before opening that camera again. Opening the camera again starts a fresh stream. **Requests to EZVIZ:** fewer; a failed live view no longer reopens the stream on every retry (#24).
+
 ## [0.11.1] - 2026-10-25
 
 ### Fixed

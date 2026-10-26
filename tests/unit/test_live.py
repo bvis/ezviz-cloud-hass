@@ -126,14 +126,59 @@ async def test_stream_lingers_after_the_last_reader_then_closes(
     assert upstream.closed == 1
 
 
+async def test_linger_stop_without_a_keyframe_cools_down(
+    upstream: _Upstream, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # HA's stream worker gave up waiting for a picture and left (#24): its retries
+    # must not wake the camera again.
+    monkeypatch.setattr(live, "LINGER", 0.01)
+    stream = _stream()
+    stream.on_no_video = MagicMock()
+    frames = stream.frames()
+    pending = asyncio.ensure_future(anext(frames))
+    await asyncio.sleep(0)
+    upstream.queue.put_nowait(FRAME + PACK)  # packs, but never a keyframe
+    await asyncio.sleep(0.01)
+    pending.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await pending
+    await frames.aclose()
+    await asyncio.sleep(0.05)
+    assert not stream.active
+    assert stream._cooldown_until > 0
+    stream.on_no_video.assert_called_once_with()
+    with pytest.raises(EzvizCloudCooldownError):
+        await anext(stream.frames())
+    assert upstream.opens == 1
+
+
+async def test_linger_stop_after_video_does_not_cool_down(
+    upstream: _Upstream, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(live, "LINGER", 0.01)
+    stream = _stream()
+    stream.on_no_video = MagicMock()
+    async with contextlib.aclosing(stream.frames()) as frames:
+        pending = asyncio.ensure_future(anext(frames))
+        await asyncio.sleep(0)
+        upstream.queue.put_nowait(KEY + PACK)
+        assert await pending == KEY
+    await asyncio.sleep(0.05)
+    assert not stream.active
+    assert stream._cooldown_until == 0
+    stream.on_no_video.assert_not_called()
+
+
 async def test_failed_open_reaches_readers_and_starts_a_cooldown(upstream: _Upstream) -> None:
     stream = _stream()
     upstream.queue.put_nowait(EzvizCloudError("5405"))
+    stream.on_no_video = MagicMock()
     with pytest.raises(EzvizCloudError, match="5405"):
         await anext(stream.frames())
     with pytest.raises(EzvizCloudCooldownError, match="a moment ago"):
         await anext(stream.frames())
     assert upstream.opens == 1
+    stream.on_no_video.assert_called_once_with()
 
 
 async def test_stream_without_video_also_cools_down(upstream: _Upstream) -> None:
@@ -255,8 +300,23 @@ async def test_read_of_a_stream_that_ends_before_a_keyframe(upstream: _Upstream)
     await asyncio.sleep(0)
     upstream.queue.put_nowait(FRAME + PACK)
     upstream.queue.put_nowait(None)
-    with pytest.raises(EzvizCloudError, match="before its first keyframe"):
+    # Packs without a keyframe are no video at all.
+    with pytest.raises(EzvizCloudError, match="no video"):
         await reading
+
+    # A reader that joins after the keyframe and sees the stream end first.
+    stream = _stream()
+    async with contextlib.aclosing(stream.frames()) as frames:
+        pending = asyncio.ensure_future(anext(frames))
+        await asyncio.sleep(0)
+        upstream.queue.put_nowait(KEY + PACK)
+        assert await pending == KEY
+        late = asyncio.ensure_future(async_read(stream, 60, 1_000_000))
+        await asyncio.sleep(0)
+        upstream.queue.put_nowait(_pes(b"p") + FRAME + PACK)
+        upstream.queue.put_nowait(None)
+        with pytest.raises(EzvizCloudError, match="before its first keyframe"):
+            await late
 
 
 async def test_read_ends_with_the_stream(upstream: _Upstream) -> None:

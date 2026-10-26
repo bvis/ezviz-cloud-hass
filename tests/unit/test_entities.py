@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.components.camera import Camera as CameraEntity
 from homeassistant.components.camera.const import CameraEntityFeature
 from homeassistant.util import dt as dt_util
 
@@ -184,3 +185,29 @@ async def test_live_camera_streams_from_the_local_view(
     assert entity.supported_features & CameraEntityFeature.STREAM
     assert await entity.stream_source() == f"{url}/api/ezviz_cloud/live/BK1?token=tok"
     assert await entity.async_camera_image() is None
+
+
+async def test_live_camera_stops_the_stream_worker_when_the_camera_gave_no_video(
+    tmp_path: Path,
+) -> None:
+    data = _data()
+    data.streams["BK1"] = MagicMock(token="tok", on_no_video=None)
+    entity = EzvizCloudLive(data, CAM)
+    entity.hass = _hass(tmp_path)
+    with (
+        patch.object(CameraEntity, "async_added_to_hass", AsyncMock()),
+        patch.object(CameraEntity, "async_will_remove_from_hass", AsyncMock()),
+    ):
+        await entity.async_added_to_hass()
+        callback = data.streams["BK1"].on_no_video
+        callback()  # no HA stream yet: nothing to stop
+        entity.hass.async_create_task.assert_not_called()
+
+        entity.stream = MagicMock(stop=AsyncMock())
+        callback()
+        entity.hass.async_create_task.assert_called_once()
+        entity.hass.async_create_task.call_args.args[0].close()  # never awaited by the mock
+        entity.stream.stop.assert_called_once_with()
+
+        await entity.async_will_remove_from_hass()
+    assert data.streams["BK1"].on_no_video is None

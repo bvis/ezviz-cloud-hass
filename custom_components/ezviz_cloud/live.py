@@ -39,8 +39,8 @@ _LOGGER = logging.getLogger(__name__)
 
 # Keeps the stream open between a clip and a notification opened right after it.
 LINGER = 20
-# After an open that gave no video, HA's stream worker retries on a backoff for as
-# long as a viewer is attached: refuse new opens for this long instead.
+# After an open that gave no video, refuse new opens for this long instead of
+# waking the camera again for every retry.
 COOLDOWN = 60
 
 
@@ -77,6 +77,10 @@ class LiveStream:
         self._task: asyncio.Task[None] | None = None
         self._linger: asyncio.TimerHandle | None = None
         self._cooldown_until = 0.0
+        # Whether the current open has handed a keyframe to its readers.
+        self._video = False
+        # Called when an open ends without video (the live camera stops HA's stream worker).
+        self.on_no_video: Callable[[], None] | None = None
         self.codec = "hevc"
         # Guards the HTTP view, which go2rtc reads without Home Assistant credentials.
         self.token = secrets.token_urlsafe(24)
@@ -123,7 +127,15 @@ class LiveStream:
     def _stop(self) -> None:
         self._linger = None
         if not self._readers and self._task is not None:
+            if not self._video:
+                # Every reader gave up waiting for a picture.
+                self._no_video()
             self._task.cancel()
+
+    def _no_video(self) -> None:
+        self._cooldown_until = asyncio.get_running_loop().time() + COOLDOWN
+        if self.on_no_video is not None:
+            self.on_no_video()
 
     async def async_close(self) -> None:
         """Close the stream now (the entry is unloading)."""
@@ -141,7 +153,7 @@ class LiveStream:
 
     async def _run(self) -> None:
         """Play the stream and hand each decrypted pack to every reader."""
-        delivered = False
+        self._video = closed = False
         end: _Item = None
         try:
             code = self._code()
@@ -161,17 +173,17 @@ class LiveStream:
                 )
                 for pack, (_, keyframe) in zip(clear, batch, strict=True):
                     self._broadcast((pack, keyframe))
-                delivered = True
+                    self._video = self._video or keyframe
         except EzvizCloudError as err:
             _LOGGER.debug("Live stream of %s failed: %s", self.camera.serial, err)
             end = err
         except asyncio.CancelledError:
-            delivered = True  # closed on purpose: no cooldown
+            closed = True  # on purpose; a linger stop without video already cooled down
             raise
         finally:
             self._task = None
-            if not delivered:
-                self._cooldown_until = asyncio.get_running_loop().time() + COOLDOWN
+            if not self._video and not closed:
+                self._no_video()
                 end = end or EzvizCloudError("The camera sent no video")
             for queue in self._readers:
                 queue.put_nowait(end)
