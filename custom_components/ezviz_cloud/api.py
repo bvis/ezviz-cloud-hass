@@ -8,6 +8,8 @@ from typing import Any
 
 import aiohttp
 
+from .const import REGIONS
+
 # Open Platform result codes that mean the appKey/appSecret pair is wrong,
 # as opposed to a transient failure worth retrying.
 _AUTH_ERROR_CODES = {"10005", "10017", "10030"}
@@ -49,7 +51,7 @@ class EzvizCloudApi:
         self._session = session
         self.domain = domain
         # Host inside ezopen:// addresses: the China platform rejects the global one.
-        self.ezopen_host = "open.ys7.com" if domain.endswith("ys7.com") else "open.ezviz.com"
+        self.ezopen_host = "open.ys7.com" if domain == REGIONS["cn"] else "open.ezviz.com"
         self._app_key = app_key
         self._app_secret = app_secret
 
