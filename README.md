@@ -33,6 +33,8 @@ Any camera the EZVIZ Open Platform can play should work. Tested so far:
 | Model | Type | Result |
 |---|---|---|
 | HP2 (`CS-HP2-R100-6E2WB-GR`) | Battery smart peephole, no RTSP, H.265 | Live view (card and live camera), recordings, *Capture photo* and *Record clip* work, wakes from sleep, encryption on |
+| CP2 | Smart peephole | Live view in the card works ([#25](https://github.com/bvis/ezviz-cloud-hass/issues/25)) |
+| CP4 (`CS-CP4`, 2WPFBS, 2MP) | Smart peephole | Live view in the card works ([#26](https://github.com/bvis/ezviz-cloud-hass/issues/26)) |
 
 If you try another model, please open an issue with the result, good or bad, so this table can grow.
 
