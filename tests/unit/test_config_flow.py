@@ -313,12 +313,12 @@ async def test_stream_step_lists_an_address_per_camera() -> None:
     flow = _options_flow()
     flow.config_entry.options["stream_token"] = "tok"
     with patch(
-        "custom_components.ezviz_cloud.config_flow.get_url", return_value="http://192.168.1.3:8123"
+        "custom_components.ezviz_cloud.config_flow.get_url", return_value="http://192.168.1.10:8123"
     ):
         result = await flow.async_step_stream()
     assert result["type"] == "form"
     assert result["description_placeholders"]["urls"] == (
-        "- Door: `http://192.168.1.3:8123/api/ezviz_cloud/live/BK1?token=tok`"
+        "- Door: `http://192.168.1.10:8123/api/ezviz_cloud/live/BK1?token=tok`"
     )
 
 
