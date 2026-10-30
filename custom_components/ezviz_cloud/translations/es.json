@@ -69,7 +69,8 @@
       "init": {
         "menu_options": {
           "codes": "Códigos de verificación",
-          "recordings": "Grabaciones"
+          "recordings": "Grabaciones",
+          "stream": "Dirección del directo para otras apps"
         }
       },
       "codes": {
@@ -94,6 +95,16 @@
         "data_description": {
           "retention_days": "Las grabaciones más antiguas se borran.",
           "max_per_camera": "Cuando una cámara tiene más grabaciones, se borran las más antiguas. 0 las guarda todas."
+        }
+      },
+      "stream": {
+        "title": "Dirección del directo para otras apps",
+        "description": "Las apps de tu red que no pueden iniciar sesión en Home Assistant, como Frigate o un go2rtc aparte, pueden leer el directo de cada cámara (MPEG-TS) desde estas direcciones:\n\n{urls}\n\nLa cámara se despierta mientras una app lee la dirección, así que activa la cámara en la app solo cuando haga falta (en Frigate, por MQTT desde una automatización). Quien tenga una dirección puede ver esa cámara.",
+        "data": {
+          "new_token": "Generar direcciones nuevas"
+        },
+        "data_description": {
+          "new_token": "Las direcciones actuales dejan de funcionar. Úsalo si se ha filtrado alguna."
         }
       }
     },

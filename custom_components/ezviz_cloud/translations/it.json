@@ -69,7 +69,8 @@
       "init": {
         "menu_options": {
           "codes": "Codici di verifica",
-          "recordings": "Registrazioni"
+          "recordings": "Registrazioni",
+          "stream": "Indirizzo della diretta per altre app"
         }
       },
       "codes": {
@@ -94,6 +95,16 @@
         "data_description": {
           "retention_days": "Le registrazioni più vecchie vengono eliminate.",
           "max_per_camera": "Oltre questo numero per telecamera, le più vecchie vengono eliminate. 0 le conserva tutte."
+        }
+      },
+      "stream": {
+        "title": "Indirizzo della diretta per altre app",
+        "description": "Le app della tua rete che non possono accedere a Home Assistant, come Frigate o un go2rtc separato, possono leggere la diretta di ogni telecamera (MPEG-TS) da questi indirizzi:\n\n{urls}\n\nLa telecamera si sveglia finché un'app legge l'indirizzo, quindi attiva la telecamera nell'app solo quando serve (in Frigate, via MQTT da un'automazione). Chiunque abbia un indirizzo può vedere quella telecamera.",
+        "data": {
+          "new_token": "Genera nuovi indirizzi"
+        },
+        "data_description": {
+          "new_token": "Gli indirizzi attuali smettono di funzionare. Usalo se un indirizzo è trapelato."
         }
       }
     },

@@ -69,7 +69,8 @@
       "init": {
         "menu_options": {
           "codes": "Códigos de verificação",
-          "recordings": "Gravações"
+          "recordings": "Gravações",
+          "stream": "Endereço da transmissão para outros apps"
         }
       },
       "codes": {
@@ -94,6 +95,16 @@
         "data_description": {
           "retention_days": "Gravações mais antigas são apagadas.",
           "max_per_camera": "Quando uma câmera tem mais gravações, as mais antigas são apagadas. 0 mantém todas."
+        }
+      },
+      "stream": {
+        "title": "Endereço da transmissão para outros apps",
+        "description": "Apps da sua rede que não conseguem entrar no Home Assistant, como o Frigate ou um go2rtc separado, podem ler a transmissão ao vivo de cada câmera (MPEG-TS) por estes endereços:\n\n{urls}\n\nA câmera acorda enquanto um app lê o endereço, então ative a câmera no app só quando precisar (no Frigate, via MQTT a partir de uma automação). Quem tiver um endereço pode ver essa câmera.",
+        "data": {
+          "new_token": "Gerar novos endereços"
+        },
+        "data_description": {
+          "new_token": "Os endereços atuais param de funcionar. Use se algum endereço vazou."
         }
       }
     },

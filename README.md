@@ -117,6 +117,39 @@ The live camera, *Capture photo* and *Record clip* share one stream per camera: 
 
 **Requests to EZVIZ:** one live address request plus the live stream while someone watches (and 20 seconds more). Nothing while nobody watches.
 
+#### Other apps (Frigate, go2rtc)
+
+*Configure → Stream address for other apps* shows an address per camera that any app on your network can read without logging in to Home Assistant: the same MPEG-TS stream the live camera plays. The addresses survive restarts; *Make new addresses* there voids them if one leaks. Anyone with an address can watch that camera.
+
+A battery camera must not be read all the time, so let an automation turn it on for a minute when something happens (a doorbell relay, a motion sensor). For Frigate (0.16 or later), add the address as a go2rtc stream and switch the camera with MQTT:
+
+```yaml
+# Frigate config
+go2rtc:
+  streams:
+    peephole: http://192.168.1.10:8123/api/ezviz_cloud/live/SERIAL?token=...
+cameras:
+  peephole:
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/peephole
+          input_args: preset-rtsp-restream
+          roles: [detect]
+```
+
+```yaml
+# Home Assistant automation actions
+- action: mqtt.publish
+  data: {topic: frigate/peephole/enabled/set, payload: "ON"}
+- delay: 60
+- action: mqtt.publish
+  data: {topic: frigate/peephole/enabled/set, payload: "OFF"}
+```
+
+Turn the camera off once in Frigate after adding it. Expect 6 to 8 seconds between the trigger and the first picture: the camera has to wake up, and the first seconds of video are skipped.
+
+**Requests to EZVIZ:** the same as the live camera, while the app reads the address.
+
 ### 6. Photos and recordings (optional)
 
 Each camera is a device with these entities:
@@ -258,7 +291,7 @@ actions:
 
 With the card, video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
 
-The live camera and the *Capture photo* and *Record clip* buttons open the same `ezopen` stream inside Home Assistant instead, decrypt it with [pyezvizapi](https://pypi.org/project/pyezvizapi/) and hand it to ffmpeg: one frame for a photo, a copy into an MP4 for a clip, a copy into MPEG-TS on a local address that go2rtc and Home Assistant's stream player read for the live camera. That address only answers with a random token that changes at every restart. The first couple of seconds the cloud sends don't decode and carry no on-screen clock; they are skipped, so video starts at the first live frame.
+The live camera and the *Capture photo* and *Record clip* buttons open the same `ezopen` stream inside Home Assistant instead, decrypt it with [pyezvizapi](https://pypi.org/project/pyezvizapi/) and hand it to ffmpeg: one frame for a photo, a copy into an MP4 for a clip, a copy into MPEG-TS on a local address that go2rtc and Home Assistant's stream player read for the live camera. That address only answers with a random token, kept across restarts (see [Other apps](#other-apps-frigate-go2rtc)). The first couple of seconds the cloud sends don't decode and carry no on-screen clock; they are skipped, so video starts at the first live frame.
 
 **Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). If that list has a camera the integration has no device for, the account reloads to add it (a token and a camera list request). The card's live stream is opened by the player in the browser. The live camera and each press of *Capture photo* or *Record clip* add one live address request plus the live stream, shared between them, kept while it is read and 20 seconds after. Saving a verification code opens it once to check the code.
 

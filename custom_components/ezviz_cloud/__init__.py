@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import secrets
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -32,6 +33,7 @@ from .const import (
     CONF_MAX_PER_CAMERA,
     CONF_REGION,
     CONF_RETENTION_DAYS,
+    CONF_STREAM_TOKEN,
     DATA_RECORDER,
     DEFAULT_MAX_PER_CAMERA,
     DEFAULT_RETENTION_DAYS,
@@ -134,13 +136,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
     entry.runtime_data = EzvizCloudData(
         manager, list(cameras.values()), dict.fromkeys(cameras, MODE_VIEW)
     )
+    stream_token: str | None = entry.options.get(CONF_STREAM_TOKEN)
+    if stream_token is None:
+        stream_token = secrets.token_urlsafe(24)
+        hass.config_entries.async_update_entry(
+            entry, options={**entry.options, CONF_STREAM_TOKEN: stream_token}
+        )
     for camera in cameras.values():
 
         def _code(serial: str = camera.serial) -> str | None:
             code: str | None = entry.options.get(CONF_CODES, {}).get(serial)
             return code
 
-        entry.runtime_data.streams[camera.serial] = LiveStream(hass, manager, camera, _code)
+        entry.runtime_data.streams[camera.serial] = LiveStream(
+            hass, manager, camera, _code, stream_token
+        )
     # 0.10.0 gave each device the official ezviz integration's identifier too, to
     # share its device; Home Assistant keeps devices per integration, so drop it.
     registry = dr.async_get(hass)

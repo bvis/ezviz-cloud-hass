@@ -69,7 +69,8 @@
       "init": {
         "menu_options": {
           "codes": "Verification codes",
-          "recordings": "Recordings"
+          "recordings": "Recordings",
+          "stream": "Stream address for other apps"
         }
       },
       "codes": {
@@ -94,6 +95,16 @@
         "data_description": {
           "retention_days": "Recordings older than this are deleted.",
           "max_per_camera": "When a camera has more recordings than this, the oldest are deleted. 0 keeps them all."
+        }
+      },
+      "stream": {
+        "title": "Stream address for other apps",
+        "description": "Apps on your network that can't log in to Home Assistant, such as Frigate or a separate go2rtc, can read each camera's live stream (MPEG-TS) from these addresses:\n\n{urls}\n\nThe camera wakes up while an app reads the address, so turn the app's camera on only when needed (in Frigate, through MQTT from an automation). Anyone with an address can watch that camera.",
+        "data": {
+          "new_token": "Make new addresses"
+        },
+        "data_description": {
+          "new_token": "The current addresses stop working. Use it if an address leaked."
         }
       }
     },

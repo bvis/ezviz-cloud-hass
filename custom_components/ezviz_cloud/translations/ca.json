@@ -69,7 +69,8 @@
       "init": {
         "menu_options": {
           "codes": "Codis de verificació",
-          "recordings": "Enregistraments"
+          "recordings": "Enregistraments",
+          "stream": "Adreça del directe per a altres apps"
         }
       },
       "codes": {
@@ -94,6 +95,16 @@
         "data_description": {
           "retention_days": "Les gravacions més antigues s'esborren.",
           "max_per_camera": "Quan una càmera en té més, s'esborren les més antigues. 0 les desa totes."
+        }
+      },
+      "stream": {
+        "title": "Adreça del directe per a altres apps",
+        "description": "Les apps de la teva xarxa que no poden iniciar sessió a Home Assistant, com Frigate o un go2rtc a part, poden llegir el directe de cada càmera (MPEG-TS) des d'aquestes adreces:\n\n{urls}\n\nLa càmera es desperta mentre una app llegeix l'adreça, així que activa la càmera a l'app només quan calgui (a Frigate, per MQTT des d'una automatització). Qui tingui una adreça pot veure aquella càmera.",
+        "data": {
+          "new_token": "Genera adreces noves"
+        },
+        "data_description": {
+          "new_token": "Les adreces actuals deixen de funcionar. Fes-ho servir si se n'ha filtrat alguna."
         }
       }
     },

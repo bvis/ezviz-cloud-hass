@@ -289,7 +289,7 @@ async def test_options_empty_code_removes_it() -> None:
 async def test_options_menu() -> None:
     result = await _options_flow().async_step_init()
     assert result["type"] == "menu"
-    assert result["menu_options"] == ["codes", "recordings"]
+    assert result["menu_options"] == ["codes", "recordings", "stream"]
 
 
 async def test_recordings_step_shows_current_values() -> None:
@@ -307,3 +307,53 @@ async def test_recordings_step_keeps_codes() -> None:
     )
     assert result["type"] == "create_entry"
     assert result["data"] == {"codes": {"BK1": "OLDOLD"}, "retention_days": 30, "max_per_camera": 0}
+
+
+async def test_stream_step_lists_an_address_per_camera() -> None:
+    flow = _options_flow()
+    flow.config_entry.options["stream_token"] = "tok"
+    with patch(
+        "custom_components.ezviz_cloud.config_flow.get_url", return_value="http://192.168.1.3:8123"
+    ):
+        result = await flow.async_step_stream()
+    assert result["type"] == "form"
+    assert result["description_placeholders"]["urls"] == (
+        "- Door: `http://192.168.1.3:8123/api/ezviz_cloud/live/BK1?token=tok`"
+    )
+
+
+async def test_stream_step_without_a_known_url_shows_a_placeholder() -> None:
+    from homeassistant.helpers.network import NoURLAvailableError
+
+    flow = _options_flow()
+    with patch(
+        "custom_components.ezviz_cloud.config_flow.get_url", side_effect=NoURLAvailableError
+    ):
+        result = await flow.async_step_stream()
+    assert "http://HOME_ASSISTANT_IP:8123/api/" in result["description_placeholders"]["urls"]
+
+
+async def test_stream_step_aborts_when_not_loaded() -> None:
+    result = await _options_flow(state=ConfigEntryState.SETUP_RETRY).async_step_stream()
+    assert result["reason"] == "not_loaded"
+
+
+async def test_stream_step_keeps_the_token_unless_asked() -> None:
+    flow = _options_flow()
+    flow.config_entry.options["stream_token"] = "tok"
+    result = await flow.async_step_stream({"new_token": False})
+    assert result["data"] == {"codes": {"BK1": "OLDOLD"}, "stream_token": "tok"}
+
+
+@pytest.mark.parametrize("state", [ConfigEntryState.LOADED, ConfigEntryState.NOT_LOADED])
+async def test_stream_step_new_token_voids_the_old_addresses(state: ConfigEntryState) -> None:
+    flow = _options_flow(state=state)
+    flow.config_entry.options["stream_token"] = "tok"
+    stream = MagicMock(token="tok")
+    flow.config_entry.runtime_data.streams = {"BK1": stream}
+    result = await flow.async_step_stream({"new_token": True})
+    token = result["data"]["stream_token"]
+    assert token != "tok"
+    assert len(token) >= 32
+    # A loaded entry's streams take the new token at once, without a reload.
+    assert stream.token == (token if state is ConfigEntryState.LOADED else "tok")

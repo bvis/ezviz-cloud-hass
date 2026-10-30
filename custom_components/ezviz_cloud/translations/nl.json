@@ -69,7 +69,8 @@
       "init": {
         "menu_options": {
           "codes": "Verificatiecodes",
-          "recordings": "Opnames"
+          "recordings": "Opnames",
+          "stream": "Streamadres voor andere apps"
         }
       },
       "codes": {
@@ -94,6 +95,16 @@
         "data_description": {
           "retention_days": "Oudere opnames worden verwijderd.",
           "max_per_camera": "Heeft een camera meer opnames, dan worden de oudste verwijderd. 0 bewaart ze allemaal."
+        }
+      },
+      "stream": {
+        "title": "Streamadres voor andere apps",
+        "description": "Apps in je netwerk die niet kunnen inloggen op Home Assistant, zoals Frigate of een losse go2rtc, kunnen de livestream van elke camera (MPEG-TS) via deze adressen lezen:\n\n{urls}\n\nDe camera wordt wakker zolang een app het adres leest, dus zet de camera in de app alleen aan als het nodig is (in Frigate via MQTT vanuit een automatisering). Iedereen met een adres kan die camera bekijken.",
+        "data": {
+          "new_token": "Nieuwe adressen maken"
+        },
+        "data_description": {
+          "new_token": "De huidige adressen werken niet meer. Gebruik dit als een adres is uitgelekt."
         }
       }
     },

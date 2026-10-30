@@ -69,7 +69,8 @@
       "init": {
         "menu_options": {
           "codes": "Codes de vérification",
-          "recordings": "Enregistrements"
+          "recordings": "Enregistrements",
+          "stream": "Adresse du direct pour d'autres apps"
         }
       },
       "codes": {
@@ -94,6 +95,16 @@
         "data_description": {
           "retention_days": "Les enregistrements plus anciens sont supprimés.",
           "max_per_camera": "Au-delà de ce nombre par caméra, les plus anciens sont supprimés. 0 les garde tous."
+        }
+      },
+      "stream": {
+        "title": "Adresse du direct pour d'autres apps",
+        "description": "Les apps de ton réseau qui ne peuvent pas se connecter à Home Assistant, comme Frigate ou un go2rtc séparé, peuvent lire le direct de chaque caméra (MPEG-TS) à ces adresses :\n\n{urls}\n\nLa caméra se réveille tant qu'une app lit l'adresse : n'active la caméra dans l'app que si nécessaire (dans Frigate, par MQTT depuis une automatisation). Quiconque a une adresse peut voir cette caméra.",
+        "data": {
+          "new_token": "Créer de nouvelles adresses"
+        },
+        "data_description": {
+          "new_token": "Les adresses actuelles cessent de fonctionner. À utiliser si une adresse a fuité."
         }
       }
     },

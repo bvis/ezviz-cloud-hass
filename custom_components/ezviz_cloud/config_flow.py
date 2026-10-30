@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 from collections.abc import Mapping
 from typing import Any
 
@@ -16,7 +17,9 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -36,9 +39,11 @@ from .const import (
     CONF_CODE,
     CONF_CODES,
     CONF_MAX_PER_CAMERA,
+    CONF_NEW_TOKEN,
     CONF_REGION,
     CONF_RETENTION_DAYS,
     CONF_SERIAL,
+    CONF_STREAM_TOKEN,
     DEFAULT_MAX_PER_CAMERA,
     DEFAULT_RETENTION_DAYS,
     DOMAIN,
@@ -245,8 +250,8 @@ class EzvizCloudOptionsFlow(OptionsFlow):
         return True
 
     async def async_step_init(self, _user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Codes and recordings are separate, so changing one never resets the other."""
-        return self.async_show_menu(step_id="init", menu_options=["codes", "recordings"])
+        """Each part saves on its own, so changing one never resets the others."""
+        return self.async_show_menu(step_id="init", menu_options=["codes", "recordings", "stream"])
 
     async def async_step_recordings(
         self, user_input: dict[str, Any] | None = None
@@ -278,5 +283,35 @@ class EzvizCloudOptionsFlow(OptionsFlow):
                         NumberSelectorConfig(min=0, max=1000, step=1, mode=NumberSelectorMode.BOX)
                     ),
                 }
+            ),
+        )
+
+    async def async_step_stream(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """The live stream addresses for other apps (go2rtc, Frigate); a new token voids them."""
+        entry = self.config_entry
+        if user_input is not None:
+            if not user_input.get(CONF_NEW_TOKEN):
+                return self.async_create_entry(data=dict(entry.options))
+            token = secrets.token_urlsafe(24)
+            if entry.state is ConfigEntryState.LOADED:
+                for stream in entry.runtime_data.streams.values():
+                    stream.token = token
+            return self.async_create_entry(data={**entry.options, CONF_STREAM_TOKEN: token})
+        if entry.state is not ConfigEntryState.LOADED:
+            return self.async_abort(reason="not_loaded")
+        try:
+            base = get_url(self.hass, allow_external=False)
+        except NoURLAvailableError:
+            base = "http://HOME_ASSISTANT_IP:8123"
+        token = entry.options.get(CONF_STREAM_TOKEN, "")
+        urls = "\n".join(
+            f"- {c.name}: `{base}/api/{DOMAIN}/live/{c.serial}?token={token}`"
+            for c in entry.runtime_data.cameras
+        )
+        return self.async_show_form(
+            step_id="stream",
+            description_placeholders={"urls": urls},
+            data_schema=vol.Schema(
+                {vol.Optional(CONF_NEW_TOKEN, default=False): BooleanSelector()}
             ),
         )

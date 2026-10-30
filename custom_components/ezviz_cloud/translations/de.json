@@ -69,7 +69,8 @@
       "init": {
         "menu_options": {
           "codes": "Verifizierungscodes",
-          "recordings": "Aufnahmen"
+          "recordings": "Aufnahmen",
+          "stream": "Stream-Adresse für andere Apps"
         }
       },
       "codes": {
@@ -94,6 +95,16 @@
         "data_description": {
           "retention_days": "Ältere Aufnahmen werden gelöscht.",
           "max_per_camera": "Hat eine Kamera mehr Aufnahmen, werden die ältesten gelöscht. 0 behält alle."
+        }
+      },
+      "stream": {
+        "title": "Stream-Adresse für andere Apps",
+        "description": "Apps in deinem Netzwerk, die sich nicht bei Home Assistant anmelden können, etwa Frigate oder ein separates go2rtc, können den Livestream jeder Kamera (MPEG-TS) über diese Adressen lesen:\n\n{urls}\n\nDie Kamera wacht auf, solange eine App die Adresse liest. Schalte die Kamera in der App also nur bei Bedarf ein (in Frigate per MQTT aus einer Automatisierung). Wer eine Adresse hat, kann diese Kamera sehen.",
+        "data": {
+          "new_token": "Neue Adressen erzeugen"
+        },
+        "data_description": {
+          "new_token": "Die bisherigen Adressen funktionieren nicht mehr. Nutze das, wenn eine Adresse bekannt geworden ist."
         }
       }
     },

@@ -68,6 +68,7 @@ class LiveStream:
         manager: TokenManager,
         camera: Camera,
         code: Callable[[], str | None],
+        token: str | None = None,
     ) -> None:
         self._hass = hass
         self._manager = manager
@@ -83,7 +84,7 @@ class LiveStream:
         self.on_no_video: Callable[[], None] | None = None
         self.codec = "hevc"
         # Guards the HTTP view, which go2rtc reads without Home Assistant credentials.
-        self.token = secrets.token_urlsafe(24)
+        self.token = token or secrets.token_urlsafe(24)
 
     @property
     def active(self) -> bool:

@@ -19,6 +19,9 @@ CONF_REGION: Final = "region"
 CONF_CODES: Final = "codes"
 CONF_SERIAL: Final = "serial"
 CONF_CODE: Final = "code"
+# Guards the live stream address other apps (go2rtc, Frigate) read; kept across restarts.
+CONF_STREAM_TOKEN: Final = "stream_token"
+CONF_NEW_TOKEN: Final = "new_token"
 
 # EZVIZ Open Platform API domain per account region. An appKey only works
 # against the region its developer account was created in.

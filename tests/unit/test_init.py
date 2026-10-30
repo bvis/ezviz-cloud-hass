@@ -75,13 +75,14 @@ async def _setup_entry(
     others: list[MagicMock] | None = None,
     devices: list[MagicMock] | None = None,
     cameras: list[Camera] | None = None,
+    options: dict | None = None,
 ) -> tuple[MagicMock, MagicMock]:
     hass = _hass()
     hass.config_entries.async_entries.return_value = others or []
     recorder = MagicMock()
     recorder.store.cleanup.return_value = 0
     hass.data[DATA_RECORDER] = recorder
-    entry = MagicMock(entry_id="this", data=DATA, options={})
+    entry = MagicMock(entry_id="this", data=DATA, options=options or {})
     with (
         patch.object(ezviz_cloud, "async_get_clientsession"),
         patch.object(ezviz_cloud, "EzvizCloudApi"),
@@ -205,3 +206,14 @@ async def test_unload() -> None:
     assert await ezviz_cloud.async_unload_entry(hass, entry)
     stream.async_close.assert_awaited_once()
     hass.config_entries.async_unload_platforms.assert_awaited_once()
+
+
+async def test_setup_entry_keeps_the_stream_token_across_restarts() -> None:
+    hass, entry = await _setup_entry()
+    # First start: a token is made, stored and given to every stream.
+    stored = hass.config_entries.async_update_entry.call_args.kwargs["options"]["stream_token"]
+    assert {s.token for s in entry.runtime_data.streams.values()} == {stored}
+    # Later starts reuse it, so the addresses other apps hold keep working.
+    hass, entry = await _setup_entry(options={"stream_token": "kept"})
+    hass.config_entries.async_update_entry.assert_not_called()
+    assert {s.token for s in entry.runtime_data.streams.values()} == {"kept"}
