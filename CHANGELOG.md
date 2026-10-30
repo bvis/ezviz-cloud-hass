@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.12.0] - unreleased
 
 ### Added
 - **Stream address for other apps.** *Configure → Stream address for other apps* shows each camera's live stream address, which apps that can't log in to Home Assistant, such as Frigate, can read. It no longer changes at every restart, and *Make new addresses* voids it. The README shows how to have Frigate read it only for a minute after a trigger. **Requests to EZVIZ:** the same as the live camera, while an app reads the address.
