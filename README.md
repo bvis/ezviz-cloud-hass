@@ -42,7 +42,7 @@ If you try another model, please open an issue with the result, good or bad, so 
 
 - Home Assistant 2026.10 or newer.
 - An EZVIZ account with the camera added in the EZVIZ app.
-- A free EZVIZ developer account in **the same region** as your EZVIZ account, to get an AppKey and AppSecret.
+- An EZVIZ developer account in **the same region** as your EZVIZ account, to get an AppKey and AppSecret. EZVIZ's free plan only lasts **120 days** from when you register as a developer (up to 10 cameras); after that, live video needs one of their paid plans, which start at about 600 USD a year. See [Limitations](#limitations).
 - The camera's **verification code**: six capital letters on the device or its box label.
 
 ## Installation
@@ -302,6 +302,7 @@ The live camera and the *Capture photo* and *Record clip* buttons open the same 
 - **Battery.** Every live view, photo and clip wakes a battery camera. Watch in short sessions.
 - **H.265 needs a player that supports it** (Safari, Chrome, Edge, the Home Assistant app on most phones); the integration doesn't re-encode.
 - **Live view in notifications** works on the iPhone Home Assistant app. On Android the notification shows a picture.
+- **EZVIZ's free plan ends after 120 days.** EZVIZ lists the developer plan as [free for 120 days](https://ieuopen.ezviz.com/price), counted from your developer registration, not from when you install this integration. EZVIZ support has told users that live streams stop working after that unless you buy a plan. Their price page doesn't say what else stops, and there's no API to read the end date, so the integration can't warn you in advance. Check your plan in the developer console.
 - **Only live video.** Recordings stored by EZVIZ (cloud or SD card) aren't browsable here; only what this integration saved.
 
 ## Troubleshooting
@@ -317,6 +318,7 @@ The live camera and the *Capture photo* and *Record clip* buttons open the same 
 | *Capture photo* fails with "Could not decode a keyframe" | Usually a wrong verification code: check it under Configure. If the code is right, please open an issue with the camera model. |
 | A capture fails with "The stream ended before its first keyframe" | The camera stopped streaming after a couple of seconds. Press again; if it keeps happening, please open an issue with the camera model. |
 | A capture or the live camera fails with "Stream error 5405" | The camera didn't answer the cloud. Some battery cameras refuse a new stream for a few minutes after the last one, or need waking by hand: wake it and try again. |
+| Everything worked for months, then every stream fails (for example "Stream error 5411" or "No permission to view the current device") | EZVIZ's free developer plan has probably ended (120 days after you registered). Check your plan in the developer console. |
 | The live camera doesn't play in the browser or the phone | It can't play H.265. Use Safari, Chrome or Edge, or the Home Assistant app on a phone that supports it. |
 | A camera has no folder in *Media → EZVIZ Cloud* | It hasn't saved anything yet, or everything it saved was deleted by the retention. Press *Capture photo* to check. |
 | The clip doesn't play in the browser | The browser can't play H.265. Open it in Safari, Chrome or Edge, or in the Home Assistant app. |
