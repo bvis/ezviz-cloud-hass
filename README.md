@@ -1,10 +1,10 @@
 # EZVIZ Cloud for Home Assistant
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![Marketplace](https://img.shields.io/badge/Marketplace-Custom-orange.svg)](https://www.home-assistant.io/integrations/marketplace/)
 [![GitHub Release](https://img.shields.io/github/release/bvis/ezviz-cloud-hass.svg)](https://github.com/bvis/ezviz-cloud-hass/releases)
 [![Tests](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/ci.yml/badge.svg)](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/ci.yml)
 [![Validate with hassfest](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/hassfest.yaml)
-[![HACS Validation](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/validate.yaml/badge.svg)](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/validate.yaml)
+[![Marketplace validation](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/validate.yaml/badge.svg)](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/validate.yaml)
 [![License: MIT](https://img.shields.io/github/license/bvis/ezviz-cloud-hass.svg)](LICENSE)
 [![Quality scale: Platinum (self-assessed)](https://img.shields.io/badge/quality%20scale-platinum%20(self--assessed)-8a9ba8)](custom_components/ezviz_cloud/quality_scale.yaml)
 
@@ -47,12 +47,14 @@ If you try another model, please open an issue with the result, good or bad, so 
 
 ## Installation
 
-### HACS (recommended)
+### Marketplace (recommended)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=bvis&repository=ezviz-cloud-hass&category=integration)
+[![Open in the Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=bvis&repository=ezviz-cloud-hass&category=integration)
 
-1. In HACS, add `https://github.com/bvis/ezviz-cloud-hass` as a custom repository (category *Integration*).
-2. Install **EZVIZ Cloud** and restart Home Assistant.
+1. Go to **Settings → Marketplace → Add from link** and enter `bvis/ezviz-cloud-hass`. Type is *Integration* if it asks.
+2. Install **EZVIZ Cloud** and restart Home Assistant if it asks you to.
+
+The Marketplace arrived in Home Assistant 2026.11. On 2026.10, add the same repository as a custom repository in HACS, which was how community integrations were installed before.
 
 ### Manual
 
@@ -326,7 +328,7 @@ The live camera and the *Capture photo* and *Record clip* buttons open the same 
 ## Removal
 
 1. Settings → Devices & services → EZVIZ Cloud → ⋮ → **Delete**.
-2. In HACS, open EZVIZ Cloud → ⋮ → **Remove**, then restart Home Assistant.
+2. Remove **EZVIZ Cloud** from Settings → Marketplace (from HACS on 2026.10), then restart Home Assistant.
 3. Photos and recordings stay in `<media>/ezviz_cloud/`. Delete that folder if you don't want them.
 4. Optionally, delete the application in the EZVIZ developer console so its AppKey stops working.
 
