@@ -14,14 +14,9 @@
 // Home Assistant's shadow roots, so it runs in an iframe srcdoc. The iframe is
 // sandboxed: the player gets an origin of its own, apart from Home Assistant's.
 
-const EZUIKIT_PKG = "https://cdn.jsdelivr.net/npm/ezuikit-js@9.0.23";
-const EZUIKIT = `${EZUIKIT_PKG}/ezuikit.js`;
-// sha384 of that file; update it with the version.
-const EZUIKIT_SRI = "sha384-uWLBO1GO3kUJVgYp3b5/mSbRBMNdgwqBSEfX4MlOhC6V55QKMhMBxkFD2bOD93bC";
-// The player fetches its WebAssembly decoder (~3 MB) from EZVIZ's static host
-// unless told otherwise; that host can be slow enough from Europe to miss the
-// video timeout. The npm package ships the same files, so take them from jsDelivr.
-const EZUIKIT_STATIC = `${EZUIKIT_PKG}/ezuikit_static`;
+// The player and its decoders ship with the integration, which serves them;
+// keep the version in step with EZUIKIT_VERSION in const.py.
+const EZUIKIT_BASE = "/ezviz_cloud/ezuikit/9.0.23";
 
 // Card texts by Home Assistant language. Kept as a plain JSON literal between
 // the markers so the repo tests can check every language has every key.
@@ -50,6 +45,7 @@ const STRINGS = /* translations */ {
     "err_token": "The EZVIZ session expired. Try again.",
     "err_viewers": "Too many people are watching this camera at once.",
     "err_permission": "This account isn't allowed to view the camera.",
+    "admin_only": "Only Home Assistant administrators can use this card. Open the camera's live entity instead.",
     "err_device": "The camera reported an error. Try again.",
     "err_service": "EZVIZ returned an error. Try again in a while.",
     "recording": "● Recording",
@@ -81,6 +77,7 @@ const STRINGS = /* translations */ {
     "err_token": "La sesión con EZVIZ ha caducado. Vuelve a intentarlo.",
     "err_viewers": "Hay demasiadas personas viendo la cámara a la vez.",
     "err_permission": "Esta cuenta no tiene permiso para ver la cámara.",
+    "admin_only": "Solo los administradores de Home Assistant pueden usar esta tarjeta. Abre la entidad de la cámara en directo.",
     "err_device": "La cámara ha dado un error. Vuelve a intentarlo.",
     "err_service": "EZVIZ ha dado un error. Vuelve a intentarlo en un rato.",
     "recording": "● Grabando",
@@ -112,6 +109,7 @@ const STRINGS = /* translations */ {
     "err_token": "La sessió amb EZVIZ ha caducat. Torna-ho a provar.",
     "err_viewers": "Hi ha massa gent mirant la càmera alhora.",
     "err_permission": "Aquest compte no té permís per veure la càmera.",
+    "admin_only": "Només els administradors de Home Assistant poden fer servir aquesta targeta. Obre l'entitat de la càmera en directe.",
     "err_device": "La càmera ha donat un error. Torna-ho a provar.",
     "err_service": "EZVIZ ha donat un error. Torna-ho a provar d'aquí a una estona.",
     "recording": "● Gravant",
@@ -143,6 +141,7 @@ const STRINGS = /* translations */ {
     "err_token": "La session EZVIZ a expiré. Réessayez.",
     "err_viewers": "Trop de personnes regardent cette caméra en même temps.",
     "err_permission": "Ce compte n'est pas autorisé à voir la caméra.",
+    "admin_only": "Seuls les administrateurs de Home Assistant peuvent utiliser cette carte. Ouvrez plutôt l'entité de la caméra en direct.",
     "err_device": "La caméra a signalé une erreur. Réessayez.",
     "err_service": "EZVIZ a renvoyé une erreur. Réessayez dans un moment.",
     "recording": "● Enregistrement",
@@ -174,6 +173,7 @@ const STRINGS = /* translations */ {
     "err_token": "Die EZVIZ-Sitzung ist abgelaufen. Versuche es erneut.",
     "err_viewers": "Zu viele Personen sehen sich diese Kamera gleichzeitig an.",
     "err_permission": "Dieses Konto darf die Kamera nicht ansehen.",
+    "admin_only": "Nur Home-Assistant-Administratoren können diese Karte nutzen. Öffne stattdessen die Live-Kamera-Entität.",
     "err_device": "Die Kamera hat einen Fehler gemeldet. Versuche es erneut.",
     "err_service": "EZVIZ hat einen Fehler zurückgegeben. Versuche es später erneut.",
     "recording": "● Aufnahme",
@@ -205,6 +205,7 @@ const STRINGS = /* translations */ {
     "err_token": "La sessione EZVIZ è scaduta. Riprova.",
     "err_viewers": "Troppe persone stanno guardando questa telecamera contemporaneamente.",
     "err_permission": "Questo account non ha il permesso di vedere la telecamera.",
+    "admin_only": "Solo gli amministratori di Home Assistant possono usare questa scheda. Apri invece l'entità della telecamera in diretta.",
     "err_device": "La telecamera ha segnalato un errore. Riprova.",
     "err_service": "EZVIZ ha restituito un errore. Riprova tra un po'.",
     "recording": "● Registrazione",
@@ -236,6 +237,7 @@ const STRINGS = /* translations */ {
     "err_token": "A sessão EZVIZ expirou. Tente novamente.",
     "err_viewers": "Há demasiadas pessoas a ver esta câmara ao mesmo tempo.",
     "err_permission": "Esta conta não tem permissão para ver a câmara.",
+    "admin_only": "Só os administradores do Home Assistant podem usar este cartão. Abra antes a entidade da câmara em direto.",
     "err_device": "A câmara reportou um erro. Tente novamente.",
     "err_service": "A EZVIZ devolveu um erro. Tente novamente daqui a pouco.",
     "recording": "● A gravar",
@@ -267,6 +269,7 @@ const STRINGS = /* translations */ {
     "err_token": "A sessão da EZVIZ expirou. Tente de novo.",
     "err_viewers": "Tem gente demais assistindo a esta câmera ao mesmo tempo.",
     "err_permission": "Esta conta não tem permissão para ver a câmera.",
+    "admin_only": "Somente administradores do Home Assistant podem usar este cartão. Abra a entidade da câmera ao vivo.",
     "err_device": "A câmera informou um erro. Tente de novo.",
     "err_service": "A EZVIZ retornou um erro. Tente de novo daqui a pouco.",
     "recording": "● Gravando",
@@ -298,6 +301,7 @@ const STRINGS = /* translations */ {
     "err_token": "De EZVIZ-sessie is verlopen. Probeer het opnieuw.",
     "err_viewers": "Te veel mensen kijken tegelijk naar deze camera.",
     "err_permission": "Dit account mag de camera niet bekijken.",
+    "admin_only": "Alleen Home Assistant-beheerders kunnen deze kaart gebruiken. Open in plaats daarvan de live camera-entiteit.",
     "err_device": "De camera meldde een fout. Probeer het opnieuw.",
     "err_service": "EZVIZ gaf een fout terug. Probeer het later opnieuw.",
     "recording": "● Opnemen",
@@ -311,7 +315,7 @@ const STRINGS = /* translations */ {
 // The player reports stream failures as English text only, from a fixed table in
 // the pinned ezuikit-js version. Known texts map to translated messages; anything
 // else is shown as the player wrote it.
-// ponytail: matches the 9.0.23 texts; after bumping EZUIKIT, check the table still matches.
+// ponytail: matches the 9.0.23 texts; after bumping EZUIKIT_BASE, check the table still matches.
 const PLAYER_ERRORS = [
   [/network (is poor|on the device side is poor|abnormality)|streaming connection is disconnected|client network timeout/i, "err_network"],
   [/not online|device does not exist/i, "err_offline"],
@@ -465,7 +469,11 @@ class EzvizCloudLiveCard extends HTMLElement {
     try {
       auth = await this._hass.callWS({ type: "ezviz_cloud/token", serial: this._config.serial });
     } catch (err) {
-      this._fail(`EZVIZ Cloud: ${err.message || err.code || err}`);
+      this._fail(
+        err.code === "unauthorized"
+          ? t(this._lang, "admin_only")
+          : `EZVIZ Cloud: ${err.message || err.code || err}`,
+      );
       return;
     }
     // Record mode lives in the integration; an older integration just answers an error.
@@ -487,11 +495,13 @@ class EzvizCloudLiveCard extends HTMLElement {
     const { serial, channel, max_seconds } = this._config;
     // Cameras with encryption off play without a code.
     const code = this._config.code || auth.code;
+    // The srcdoc frame needs absolute addresses.
+    const base = new URL(EZUIKIT_BASE, location.href).href;
     const opts = JSON.stringify({
       accessToken: auth.access_token,
       url: `ezopen://${code ? `${code}@` : ""}${auth.ezopen_host || "open.ezviz.com"}/${serial}/${channel}.live`,
       env: { domain: auth.domain },
-      staticPath: EZUIKIT_STATIC,
+      staticPath: `${base}/ezuikit_static`,
       language: "en",
     }).replace(/</g, "\\u003c");
     const iframe = document.createElement("iframe");
@@ -505,7 +515,7 @@ class EzvizCloudLiveCard extends HTMLElement {
 // A sandboxed frame has no storage, and the player expects some: give it one in memory.
 const mem=new Map();const store={getItem:(k)=>(mem.has(k)?mem.get(k):null),setItem:(k,v)=>{mem.set(k,String(v));},removeItem:(k)=>{mem.delete(k);},clear:()=>mem.clear(),key:(i)=>[...mem.keys()][i]??null,get length(){return mem.size;}};
 for(const n of["localStorage","sessionStorage"]){try{window[n];}catch(e){Object.defineProperty(window,n,{value:store,configurable:true});}}</script>
-<script src="${EZUIKIT}" integrity="${EZUIKIT_SRI}" crossorigin="anonymous" onerror="send({errorKey:'player_load_failed'})"></script></head><body><div id="v"></div><script>
+<script src="${base}/ezuikit.js" onerror="send({errorKey:'player_load_failed'})"></script></head><body><div id="v"></div><script>
 if(window.EZUIKit){
 const o=${opts};
 const E=EZUIKit.EZUIKitPlayer.EVENTS;

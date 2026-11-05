@@ -1,0 +1,49 @@
+{
+  "name": "ezuikit-js",
+  "version": "9.0.23",
+  "description": "ezuikit javascript for npm",
+  "title": "ezuikit-js",
+  "main": "index.js",
+  "module": "index.mjs",
+  "keywords": [
+    "video",
+    "ezuikit",
+    "ezopen",
+    "ezviz",
+    "ys7",
+    "open"
+  ],
+  "files": [
+    "ezuikit.js",
+    "index.js",
+    "index.mjs",
+    "ezuikit_static",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "author": "Ezviz-OpenBiz",
+  "dependencies": {
+    "@ezuikit/player-ezopen": "9.0.9-beta.5",
+    "@ezuikit/utils-collect": "0.1.1",
+    "@ezuikit/utils-i18n": "2.0.1",
+    "@ezuikit/utils-logger": "2.1.0",
+    "@ezuikit/utils-tools": "2.0.7",
+    "@juggle/resize-observer": "^3.4.0",
+    "@skax/delegate": "4.0.2",
+    "abortcontroller-polyfill": "^1.7.5",
+    "debounce-promise": "^3.1.2",
+    "deepmerge": "^4.3.1",
+    "formdata-polyfill": "^4.0.10",
+    "screenfull": "^5.2.0",
+    "@ezuikit/control-aichat": "0.1.1-beta.1"
+  },
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ezviz-OpenBiz/EZUIKit-JavaScript-npm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Ezviz-OpenBiz/EZUIKit-JavaScript-npm/issues"
+  },
+  "homepage": "https://github.com/Ezviz-OpenBiz/EZUIKit-JavaScript-npm#readme"
+}

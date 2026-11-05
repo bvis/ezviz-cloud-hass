@@ -8,12 +8,13 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiohttp import web
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 
 from custom_components import ezviz_cloud
 from custom_components.ezviz_cloud.api import Camera, EzvizCloudAuthError, EzvizCloudError
-from custom_components.ezviz_cloud.const import CARD_URL, DATA_RECORDER
+from custom_components.ezviz_cloud.const import CARD_URL, DATA_RECORDER, PLAYER_URL
 from custom_components.ezviz_cloud.live import LiveStream, LiveStreamView
 from custom_components.ezviz_cloud.recording import RecordingSessions, RecordingUploadView
 
@@ -23,7 +24,7 @@ DATA = {"region": "eu", "app_key": "key", "app_secret": "secret"}
 async def test_setup_serves_card_with_content_hash_url() -> None:
     hass = MagicMock()
     hass.http.async_register_static_paths = AsyncMock()
-    hass.async_add_executor_job = AsyncMock(side_effect=lambda fn: fn())
+    hass.async_add_executor_job = AsyncMock(side_effect=lambda fn, *args: fn(*args))
     hass.config.media_dirs = {"local": "/media"}
     hass.data = {}
     hass.http.register_view = MagicMock()
@@ -36,7 +37,15 @@ async def test_setup_serves_card_with_content_hash_url() -> None:
         assert await ezviz_cloud.async_setup(hass, {})
     assert isinstance(hass.data[DATA_RECORDER], RecordingSessions)
     views = [c.args[0] for c in hass.http.register_view.call_args_list]
-    assert [type(v) for v in views] == [RecordingUploadView, LiveStreamView]
+    assert [type(v) for v in views] == [
+        ezviz_cloud.PlayerFilesView,
+        RecordingUploadView,
+        LiveStreamView,
+    ]
+    assert views[0].url == f"{PLAYER_URL}/{{filename:.+}}"
+    assert views[0].cors_allowed
+    assert not views[0].requires_auth
+    assert {"ezuikit.js", "LICENSE"} <= set(views[0]._files)
     assert track_expire.call_args.args[2] == timedelta(seconds=10)
     with patch.object(RecordingSessions, "expire", AsyncMock()) as expire:
         await track_expire.call_args.args[1](None)
@@ -47,6 +56,23 @@ async def test_setup_serves_card_with_content_hash_url() -> None:
     digest = hashlib.sha256(Path(path_cfg.path).read_bytes()).hexdigest()[:12]
     add_js.assert_called_once_with(hass, f"{CARD_URL}?v={digest}")
     register_ws.assert_called_once_with(hass)
+
+
+async def test_player_view_serves_only_bundled_files(tmp_path: Path) -> None:
+    (tmp_path / "ezuikit.js").write_text("js")
+    (tmp_path / "d").mkdir()
+    (tmp_path / "d" / "Decoder.wasm").write_bytes(b"wasm")
+    view = ezviz_cloud.PlayerFilesView(ezviz_cloud._files(tmp_path))
+    assert set(view._files) == {"ezuikit.js", "d/Decoder.wasm"}
+
+    wasm = await view.get(MagicMock(), "d/Decoder.wasm")
+    assert wasm.headers["Content-Type"] == "application/wasm"
+    assert "max-age" in wasm.headers["Cache-Control"]
+    js = await view.get(MagicMock(), "ezuikit.js")
+    assert "Content-Type" not in js.headers
+    for name in ("../__init__.py", "missing.js", "d"):
+        with pytest.raises(web.HTTPNotFound):
+            await view.get(MagicMock(), name)
 
 
 CAMERAS = [

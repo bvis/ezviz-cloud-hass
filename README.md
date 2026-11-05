@@ -109,6 +109,8 @@ max_seconds: 60          # optional, default 60
 
 `code: ABCDEF` still works on the card and wins over the stored one, but anyone who can open the dashboard can read it there.
 
+The card only plays for Home Assistant administrators, because it hands the browser your EZVIZ access token and the camera's code. Other users get a message on the card and watch through the [live camera](#5-the-live-camera-optional) instead.
+
 ### 5. The live camera (optional)
 
 Each camera also gets a **Live** camera entity (`camera.<name>_live`). Use it where the card can't go: a *Picture entity* or *Picture glance* card, the live view in a notification (see [section 8](#8-capture-from-an-automation-optional)), HomeKit or any other bridge. Its picture is the last saved photo, so a dashboard never wakes the camera; the video starts when you open it.
@@ -288,7 +290,7 @@ actions:
 ## How it works
 
 1. When you press *Watch live*, the card asks the integration for an Open Platform access token and the camera's stored verification code over Home Assistant's authenticated websocket.
-2. The card loads EZVIZ's web player ([ezuikit-js](https://www.npmjs.com/package/ezuikit-js), ISC license) and opens an `ezopen://` live address with your verification code.
+2. The card loads EZVIZ's web player ([ezuikit-js](https://www.npmjs.com/package/ezuikit-js) 9.0.23, ISC license), which ships with the integration and is served by Home Assistant, and opens an `ezopen://` live address with your verification code.
 3. The EZVIZ cloud wakes the camera and relays the stream to your browser, where it is decrypted and decoded (H.265 and H.264).
 
 With the card, video never goes through Home Assistant: it flows from the EZVIZ cloud straight to the browser. The Open Platform only offers HLS/RTMP addresses for cameras with encryption turned off, and this integration is built for cameras that keep it on.
@@ -305,6 +307,7 @@ The live camera and the *Capture photo* and *Record clip* buttons open the same 
 - **H.265 needs a player that supports it** (Safari, Chrome, Edge, the Home Assistant app on most phones); the integration doesn't re-encode.
 - **Live view in notifications** works on the iPhone Home Assistant app. On Android the notification shows a picture.
 - **EZVIZ's free plan ends after 120 days.** EZVIZ lists the developer plan as [free for 120 days](https://ieuopen.ezviz.com/price), counted from your developer registration, not from when you install this integration. EZVIZ support has told users that live streams stop working after that unless you buy a plan. Their price page doesn't say what else stops, and there's no API to read the end date, so the integration can't warn you in advance. Check your plan in the developer console.
+- **The card is for administrators.** Other Home Assistant users watch through the live camera entity.
 - **Only live video.** Recordings stored by EZVIZ (cloud or SD card) aren't browsable here; only what this integration saved.
 
 ## Troubleshooting

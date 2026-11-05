@@ -7,7 +7,11 @@ from typing import Any
 import probatio as vol
 from homeassistant.components.websocket_api import async_register_command
 from homeassistant.components.websocket_api.connection import ActiveConnection
-from homeassistant.components.websocket_api.decorators import async_response, websocket_command
+from homeassistant.components.websocket_api.decorators import (
+    async_response,
+    require_admin,
+    websocket_command,
+)
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
 
@@ -30,6 +34,9 @@ def _loaded_entries(hass: HomeAssistant) -> list[ConfigEntry]:
     ]
 
 
+# Token and code let anyone watch the camera from outside Home Assistant, so only
+# admins get them; other users watch through the live camera entity.
+@require_admin
 @websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/token",
@@ -69,6 +76,7 @@ async def ws_get_token(
     connection.send_result(msg["id"], result)
 
 
+@require_admin
 @websocket_command({vol.Required("type"): f"{DOMAIN}/devices"})
 @async_response
 async def ws_get_devices(

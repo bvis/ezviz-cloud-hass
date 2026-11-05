@@ -41,6 +41,10 @@ TOKEN_RENEW_MARGIN: Final = timedelta(days=1)
 
 CARD_FILENAME: Final = "ezviz-cloud-live-card.js"
 CARD_URL: Final = f"/{DOMAIN}/{CARD_FILENAME}"
+# The card's player (ezuikit-js), bundled under frontend/ezuikit. The version is in
+# the URL so a new one isn't hidden by the browsers' month-long cache.
+EZUIKIT_VERSION: Final = "9.0.23"
+PLAYER_URL: Final = f"/{DOMAIN}/ezuikit/{EZUIKIT_VERSION}"
 
 # Recording modes, picked per camera with the select entity. View and photo
 # don't record the card's live view; the capture-by-mode button follows them.
