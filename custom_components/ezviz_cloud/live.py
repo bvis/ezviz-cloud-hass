@@ -248,7 +248,9 @@ class LiveStreamView(HomeAssistantView):
         """Stream MPEG-TS while the client stays connected."""
         hass = request.app[KEY_HASS]
         stream = find_stream(hass, serial)
-        if stream is None or not hmac.compare_digest(request.query.get("token", ""), stream.token):
+        if stream is None or not hmac.compare_digest(
+            request.query.get("token", "").encode(), stream.token.encode()
+        ):
             raise web.HTTPNotFound
         async with contextlib.aclosing(stream.frames()) as frames:
             try:

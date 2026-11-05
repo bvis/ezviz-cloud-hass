@@ -433,7 +433,7 @@ async def test_view_remuxes_the_stream_to_mpegts() -> None:
     assert proc.killed
 
 
-@pytest.mark.parametrize(("found", "token"), [(False, "tok"), (True, "wrong")])
+@pytest.mark.parametrize(("found", "token"), [(False, "tok"), (True, "wrong"), (True, "t\u00f6k")])
 async def test_view_hides_unknown_cameras_and_bad_tokens(found: bool, token: str) -> None:
     stream = MagicMock(token="tok") if found else None
     with pytest.raises(web.HTTPNotFound):

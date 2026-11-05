@@ -122,3 +122,12 @@ async def test_capture_blueprint_is_a_valid_automation(
 def test_platforms_set_parallel_updates(platform: str) -> None:
     module = importlib.import_module(f"custom_components.ezviz_cloud.{platform}")
     assert module.PARALLEL_UPDATES == 0
+
+
+def test_card_loads_the_bundled_player_version() -> None:
+    from custom_components.ezviz_cloud.const import PLAYER_URL
+
+    bundled = json.loads((COMPONENT / "frontend" / "ezuikit" / "package.json").read_text())
+    assert f'const EZUIKIT_BASE = "{PLAYER_URL}";' in CARD
+    assert PLAYER_URL.endswith(f"/{bundled['version']}")
+    assert "https://" not in CARD.split("/* translations */")[0]

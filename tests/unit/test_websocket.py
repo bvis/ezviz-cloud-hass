@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.exceptions import Unauthorized
 
 from custom_components.ezviz_cloud.api import AccessToken, Camera, EzvizCloudError
 from custom_components.ezviz_cloud.const import DATA_RECORDER
@@ -71,6 +72,16 @@ async def test_reports_token_failure() -> None:
     entry.runtime_data.manager.async_get_token = AsyncMock(side_effect=EzvizCloudError("down"))
     conn = await _call([entry], {})
     assert conn.send_error.call_args.args[:2] == (1, "token_error")
+
+
+@pytest.mark.parametrize("handler", [ws_get_token, ws_get_devices])
+def test_token_and_devices_are_admin_only(handler) -> None:  # type: ignore[no-untyped-def]
+    hass = MagicMock()
+    connection = MagicMock()
+    connection.user.is_admin = False
+    with pytest.raises(Unauthorized):
+        handler(hass, connection, {"id": 1})
+    hass.async_create_background_task.assert_not_called()
 
 
 def test_registers_command() -> None:

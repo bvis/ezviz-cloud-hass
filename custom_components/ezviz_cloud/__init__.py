@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from aiohttp import web
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http.server import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
@@ -20,6 +21,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.http import HomeAssistantView
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
@@ -39,6 +41,7 @@ from .const import (
     DEFAULT_RETENTION_DAYS,
     DOMAIN,
     MODE_VIEW,
+    PLAYER_URL,
     REGIONS,
     signal_recorded,
 )
@@ -50,6 +53,37 @@ from .websocket import async_register_commands
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.BUTTON, Platform.CAMERA, Platform.NUMBER, Platform.SELECT, Platform.SENSOR]
+
+
+def _files(root: Path) -> dict[str, Path]:
+    return {p.relative_to(root).as_posix(): p for p in root.rglob("*") if p.is_file()}
+
+
+class PlayerFilesView(HomeAssistantView):
+    """Serves the bundled player and its decoders to the card.
+
+    The player runs in a sandboxed iframe, whose origin isn't Home Assistant's, and
+    fetches its WebAssembly decoders from there: that needs CORS, which a static
+    path doesn't send. Only the files bundled with the integration are served.
+    """
+
+    url = f"{PLAYER_URL}/{{filename:.+}}"
+    name = f"{DOMAIN}:player"
+    requires_auth = False
+    cors_allowed = True
+
+    def __init__(self, files: dict[str, Path]) -> None:
+        """Keep the list of files, read once at startup."""
+        self._files = files
+
+    async def get(self, _request: web.Request, filename: str) -> web.FileResponse:
+        """Send one file; anything not bundled is a 404."""
+        if (file := self._files.get(filename)) is None:
+            raise web.HTTPNotFound
+        headers = {"Cache-Control": "public, max-age=2678400"}
+        if file.suffix == ".wasm":
+            headers["Content-Type"] = "application/wasm"
+        return web.FileResponse(file, headers=headers)
 
 
 @dataclass
@@ -79,6 +113,8 @@ async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
     # The file is served with a month-long cache, so the URL carries a hash of its
     # content: any change to the card reaches browsers on the next page load.
     add_extra_js_url(hass, f"{CARD_URL}?v={hashlib.sha256(content).hexdigest()[:12]}")
+    player = Path(__file__).parent / "frontend" / "ezuikit"
+    hass.http.register_view(PlayerFilesView(await hass.async_add_executor_job(_files, player)))
     async_register_commands(hass)
 
     media_root = Path(hass.config.media_dirs.get("local") or hass.config.path("media"))
