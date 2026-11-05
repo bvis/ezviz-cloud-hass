@@ -3,7 +3,9 @@
 useDefault = true
 
 [allowlist]
-description = "Test fixtures"
+description = "Test fixtures and the bundled third-party player"
 paths = [
   '''tests/.*''',
+  # ezuikit-js, unmodified; its base64 alphabet looks like a generic API key.
+  '''custom_components/ezviz_cloud/frontend/ezuikit/.*''',
 ]
