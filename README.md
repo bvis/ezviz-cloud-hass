@@ -318,6 +318,7 @@ The live camera and the *Capture photo* and *Record clip* buttons open the same 
 | The card says `EZVIZ Cloud: No loaded EZVIZ Cloud account` | The integration isn't set up or failed to load. Check Settings → Devices & services. |
 | The card shows an error after "Waking camera…" | The camera didn't answer the cloud in time: check it's online in the EZVIZ app and try again. A wrong or missing verification code also fails here; check it under Configure. |
 | The card shows "Couldn't save the recording" | Another browser is already recording that camera, this browser can't record the player's video, or Home Assistant couldn't write the file (check the log). |
+| The card says "Couldn't load the EZVIZ player" | The player comes from Home Assistant. When Home Assistant is on a local address, Chrome asks once whether the page may reach devices on your local network: allow it. If you denied it, allow it again from the padlock next to the address. A reverse proxy that caches assets can also keep an error from a Home Assistant restart: turn that cache off for Home Assistant. |
 | The card isn't in the card picker | Hard-refresh the browser (the card is loaded once per page load). |
 | *Capture photo* or *Record clip* fails with "No video received; the camera may be asleep" | The camera didn't answer within 20 seconds. Check it's online in the EZVIZ app and press again. |
 | *Capture photo* fails with "Could not decode a keyframe" | Usually a wrong verification code: check it under Configure. If the code is right, please open an issue with the camera model. |

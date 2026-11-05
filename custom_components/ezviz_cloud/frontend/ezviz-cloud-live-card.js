@@ -30,7 +30,7 @@ const STRINGS = /* translations */ {
     "waking_camera": "Waking camera…",
     "starting_video": "Starting video…",
     "no_video": "No video from the camera after {s} s",
-    "player_load_failed": "Couldn't load the EZVIZ player",
+    "player_load_failed": "Couldn't load the EZVIZ player. If the browser asks to access devices on your local network, allow it for Home Assistant.",
     "could_not_start": "Couldn't start the video: {msg}",
     "player_error": "Player error",
     "label_serial": "Camera",
@@ -62,7 +62,7 @@ const STRINGS = /* translations */ {
     "waking_camera": "Despertando la cámara…",
     "starting_video": "Iniciando vídeo…",
     "no_video": "La cámara no ha enviado vídeo en {s} s",
-    "player_load_failed": "No se ha podido cargar el reproductor de EZVIZ",
+    "player_load_failed": "No se ha podido cargar el reproductor de EZVIZ. Si el navegador pide acceder a dispositivos de tu red local, permíteselo a Home Assistant.",
     "could_not_start": "No se ha podido iniciar el vídeo: {msg}",
     "player_error": "Error del reproductor",
     "label_serial": "Cámara",
@@ -94,7 +94,7 @@ const STRINGS = /* translations */ {
     "waking_camera": "Despertant la càmera…",
     "starting_video": "Iniciant el vídeo…",
     "no_video": "La càmera no ha enviat vídeo en {s} s",
-    "player_load_failed": "No s'ha pogut carregar el reproductor d'EZVIZ",
+    "player_load_failed": "No s'ha pogut carregar el reproductor d'EZVIZ. Si el navegador demana accedir a dispositius de la xarxa local, permet-ho a Home Assistant.",
     "could_not_start": "No s'ha pogut iniciar el vídeo: {msg}",
     "player_error": "Error del reproductor",
     "label_serial": "Càmera",
@@ -126,7 +126,7 @@ const STRINGS = /* translations */ {
     "waking_camera": "Réveil de la caméra…",
     "starting_video": "Démarrage de la vidéo…",
     "no_video": "Aucune vidéo de la caméra après {s} s",
-    "player_load_failed": "Impossible de charger le lecteur EZVIZ",
+    "player_load_failed": "Impossible de charger le lecteur EZVIZ. Si le navigateur demande l'accès aux appareils de votre réseau local, autorisez-le pour Home Assistant.",
     "could_not_start": "Impossible de démarrer la vidéo : {msg}",
     "player_error": "Erreur du lecteur",
     "label_serial": "Caméra",
@@ -158,7 +158,7 @@ const STRINGS = /* translations */ {
     "waking_camera": "Kamera wird geweckt…",
     "starting_video": "Video wird gestartet…",
     "no_video": "Kein Video von der Kamera nach {s} s",
-    "player_load_failed": "EZVIZ-Player konnte nicht geladen werden",
+    "player_load_failed": "EZVIZ-Player konnte nicht geladen werden. Wenn der Browser nach Zugriff auf Geräte im lokalen Netzwerk fragt, erlaube ihn für Home Assistant.",
     "could_not_start": "Video konnte nicht gestartet werden: {msg}",
     "player_error": "Player-Fehler",
     "label_serial": "Kamera",
@@ -190,7 +190,7 @@ const STRINGS = /* translations */ {
     "waking_camera": "Risveglio della telecamera…",
     "starting_video": "Avvio del video…",
     "no_video": "Nessun video dalla telecamera dopo {s} s",
-    "player_load_failed": "Impossibile caricare il player EZVIZ",
+    "player_load_failed": "Impossibile caricare il player EZVIZ. Se il browser chiede di accedere ai dispositivi della rete locale, consentilo per Home Assistant.",
     "could_not_start": "Impossibile avviare il video: {msg}",
     "player_error": "Errore del player",
     "label_serial": "Telecamera",
@@ -222,7 +222,7 @@ const STRINGS = /* translations */ {
     "waking_camera": "A acordar a câmara…",
     "starting_video": "A iniciar o vídeo…",
     "no_video": "Sem vídeo da câmara após {s} s",
-    "player_load_failed": "Não foi possível carregar o leitor EZVIZ",
+    "player_load_failed": "Não foi possível carregar o leitor EZVIZ. Se o navegador pedir acesso a dispositivos da rede local, permita-o para o Home Assistant.",
     "could_not_start": "Não foi possível iniciar o vídeo: {msg}",
     "player_error": "Erro do leitor",
     "label_serial": "Câmara",
@@ -254,7 +254,7 @@ const STRINGS = /* translations */ {
     "waking_camera": "Acordando a câmera…",
     "starting_video": "Iniciando o vídeo…",
     "no_video": "Nenhum vídeo da câmera após {s} s",
-    "player_load_failed": "Não foi possível carregar o player EZVIZ",
+    "player_load_failed": "Não foi possível carregar o player EZVIZ. Se o navegador pedir acesso a dispositivos da rede local, permita para o Home Assistant.",
     "could_not_start": "Não foi possível iniciar o vídeo: {msg}",
     "player_error": "Erro do player",
     "label_serial": "Câmera",
@@ -286,7 +286,7 @@ const STRINGS = /* translations */ {
     "waking_camera": "Camera wordt gewekt…",
     "starting_video": "Video starten…",
     "no_video": "Geen video van de camera na {s} s",
-    "player_load_failed": "Kan de EZVIZ-speler niet laden",
+    "player_load_failed": "Kan de EZVIZ-speler niet laden. Als de browser vraagt om toegang tot apparaten in je lokale netwerk, sta dat toe voor Home Assistant.",
     "could_not_start": "Kan de video niet starten: {msg}",
     "player_error": "Spelerfout",
     "label_serial": "Camera",
@@ -506,7 +506,9 @@ class EzvizCloudLiveCard extends HTMLElement {
     }).replace(/</g, "\\u003c");
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "border:0;width:100%;height:100%;position:absolute;inset:0";
-    iframe.setAttribute("allow", "autoplay; fullscreen");
+    // The player's files come from Home Assistant, often a local address: Chrome
+    // only lets the sandboxed frame reach it if the page delegates that permission.
+    iframe.setAttribute("allow", "autoplay; fullscreen; local-network-access; local-network");
     iframe.setAttribute("sandbox", "allow-scripts");
     // The player runs inside the iframe; it reports back with postMessage.
     iframe.srcdoc = `<!doctype html><html><head><meta charset="utf-8">

@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **The card only plays for administrators.** It needs the account's access token and the camera's code in the browser, and those let anyone watch the camera from outside Home Assistant, so the websocket commands that hand them out (and the camera list for the card editor) now refuse other users. They get a message on the card and watch through the live camera entity, which never sees either. **Requests to EZVIZ:** none changed.
-- The card's player (ezuikit-js 9.0.23) and its decoders now ship with the integration and Home Assistant serves them, so the card no longer loads anything from jsDelivr. The integration download is about 19 MB bigger. **Requests to EZVIZ:** none changed.
+- The card's player (ezuikit-js 9.0.23) and its decoders now ship with the integration and Home Assistant serves them, so the card no longer loads anything from jsDelivr. The integration download is about 19 MB bigger. When Home Assistant is on a local address, Chrome asks once to let it reach devices on your local network; allow it, or the player doesn't load. **Requests to EZVIZ:** none changed.
 
 ### Fixed
 - A live camera address with a non-ASCII `token` gave a server error instead of "not found".
