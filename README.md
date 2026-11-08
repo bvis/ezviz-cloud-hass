@@ -306,7 +306,7 @@ The live camera and the *Capture photo* and *Record clip* buttons open the same 
 - **Battery.** Every live view, photo and clip wakes a battery camera. Watch in short sessions.
 - **H.265 needs a player that supports it** (Safari, Chrome, Edge, the Home Assistant app on most phones); the integration doesn't re-encode.
 - **Live view in notifications** works on the iPhone Home Assistant app. On Android the notification shows a picture.
-- **EZVIZ's free plan ends after 120 days.** EZVIZ lists the developer plan as [free for 120 days](https://ieuopen.ezviz.com/price), counted from your developer registration, not from when you install this integration. EZVIZ support has told users that live streams stop working after that unless you buy a plan. Their price page doesn't say what else stops, and there's no API to read the end date, so the integration can't warn you in advance. Check your plan in the developer console.
+- **EZVIZ's free plan ends after 120 days.** EZVIZ lists the developer plan as [free for 120 days](https://ieuopen.ezviz.com/price), counted from your developer registration, not from when you install this integration. EZVIZ support has told users that live streams stop working after that unless you buy a plan. Photos and clips are taken from the live stream, so they stop too; the ones already saved stay in Home Assistant. Their price page doesn't say what else stops, and there's no API to read the end date, so the integration can't warn you in advance. Check your plan in the developer console.
 - **The card is for administrators.** Other Home Assistant users watch through the live camera entity.
 - **Only live video.** Recordings stored by EZVIZ (cloud or SD card) aren't browsable here; only what this integration saved.
 
