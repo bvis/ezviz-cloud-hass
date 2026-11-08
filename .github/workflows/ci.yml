@@ -37,6 +37,11 @@ jobs:
               --cov-fail-under=95 \
               --cov-report=term-missing \
               --cov-report=json:/coverage/coverage.json
+      - name: Decrypt still works with the pyezvizapi HA core pins
+        # The image gets the newest pyezvizapi; core's ezviz may still pin 1.x
+        run: |
+          docker run --rm ezviz-cloud-dev sh -c \
+            "pip install -q pyezvizapi==1.0.5.0 && pytest tests/unit/test_snapshot.py -q -k pyezvizapi"
       - name: Coverage summary
         if: matrix.python-version == '3.14'
         run: |
