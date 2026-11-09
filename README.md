@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/github/license/bvis/ezviz-cloud-hass.svg)](LICENSE)
 [![Quality scale: Platinum (self-assessed)](https://img.shields.io/badge/quality%20scale-platinum%20(self--assessed)-8a9ba8)](custom_components/ezviz_cloud/quality_scale.yaml)
 
-> **Disclaimer**: This is an **unofficial** integration, not affiliated with or endorsed by EZVIZ. It uses the public [EZVIZ Open Platform](https://ieuopen.ezviz.com) API with your own developer credentials.
+> **Disclaimer**: This is an **unofficial** integration, not affiliated with or endorsed by EZVIZ. It uses the public [EZVIZ Open Platform](https://ieuopen.ezviz.com) API with your own developer credentials or, if you'd rather not have a developer account, the EZVIZ app account that Home Assistant's built-in EZVIZ integration is logged in with.
 
 Watch the live video of your EZVIZ cameras on a Home Assistant dashboard, including **battery cameras and smart peepholes that have no RTSP** and cameras with **video encryption turned on**.
 
@@ -42,7 +42,9 @@ If you try another model, please open an issue with the result, good or bad, so 
 
 - Home Assistant 2026.10 or newer.
 - An EZVIZ account with the camera added in the EZVIZ app.
-- An EZVIZ developer account in **the same region** as your EZVIZ account, to get an AppKey and AppSecret. EZVIZ's free plan only lasts **120 days** from when you register as a developer (up to 10 cameras); after that, live video needs one of their paid plans, which start at about 600 USD a year. See [Limitations](#limitations).
+- One of these two:
+  - An EZVIZ developer account in **the same region** as your EZVIZ account, to get an AppKey and AppSecret. EZVIZ's free plan only lasts **120 days** from when you register as a developer (up to 10 cameras); after that, live video needs one of their paid plans, which start at about 600 USD a year. See [Limitations](#limitations).
+  - Or Home Assistant's built-in [EZVIZ integration](https://www.home-assistant.io/integrations/ezviz/), set up with your EZVIZ app account. No developer account and no plan to pay for. See [Without a developer account](#without-a-developer-account-the-ezviz-app-account).
 - The camera's **verification code**: six capital letters on the device or its box label.
 
 ## Installation
@@ -85,7 +87,19 @@ Your cameras show up under **My resources → Equipment list**. If a camera isn'
 
 [![Open your Home Assistant instance and start setting up a new integration.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=ezviz_cloud)
 
-Settings → Devices & services → Add integration → **EZVIZ Cloud**. Choose your region and paste the AppKey and AppSecret. The credentials are checked before the entry is created. To change the region or the AppSecret later, use **Reconfigure** on the integration. If EZVIZ stops accepting the AppSecret, Home Assistant asks for the new one.
+Settings → Devices & services → Add integration → **EZVIZ Cloud** → **EZVIZ Open Platform app**. Choose your region and paste the AppKey and AppSecret. The credentials are checked before the entry is created. To change the region or the AppSecret later, use **Reconfigure** on the integration. If EZVIZ stops accepting the AppSecret, Home Assistant asks for the new one.
+
+#### Without a developer account: the EZVIZ app account
+
+If you don't want a developer account, or your free plan has ended, the integration can use the login of Home Assistant's built-in EZVIZ integration instead:
+
+1. Set up the built-in **EZVIZ** integration with your EZVIZ app account (email and password). It's fine if it shows no picture for your battery cameras or peephole.
+2. Add **EZVIZ Cloud** → **EZVIZ app account** and pick that account.
+3. Store the verification codes in this integration, as in step 3. The built-in integration can't keep codes for cameras without RTSP, so this one needs its own.
+
+Already on an Open Platform app? Use **Reconfigure** → **EZVIZ app account** on the integration: the verification codes, recordings, entities and stream addresses stay as they are.
+
+On this account the card can't play in the browser, because there is no token the browser could use. It shows the integration's live camera instead, which Home Assistant streams, and its **Record** button saves a clip with the *Record clip* button. Photos, clips, the live camera and the address for other apps work the same on both.
 
 ### 3. Store the verification codes
 
@@ -297,7 +311,11 @@ With the card, video never goes through Home Assistant: it flows from the EZVIZ 
 
 The live camera and the *Capture photo* and *Record clip* buttons open the same `ezopen` stream inside Home Assistant instead, decrypt it with [pyezvizapi](https://pypi.org/project/pyezvizapi/) and hand it to ffmpeg: one frame for a photo, a copy into an MP4 for a clip, a copy into MPEG-TS on a local address that go2rtc and Home Assistant's stream player read for the live camera. That address only answers with a random token, kept across restarts (see [Other apps](#other-apps-frigate-go2rtc)). The first couple of seconds the cloud sends don't decode and carry no on-screen clock; they are skipped, so video starts at the first live frame.
 
-**Requests to EZVIZ:** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). If that list has a camera the integration has no device for, the account reloads to add it (a token and a camera list request). The card's live stream is opened by the player in the browser. The live camera and each press of *Capture photo* or *Record clip* add one live address request plus the live stream, shared between them, kept while it is read and 20 seconds after. Saving a verification code opens it once to check the code.
+On the EZVIZ app account, the same server-side path reads the camera's live stream with [pyezvizapi](https://pypi.org/project/pyezvizapi/) and the login of the built-in EZVIZ integration, which keeps that session alive. The video is the same, decrypted with the same verification code.
+
+**Requests to EZVIZ (EZVIZ app account):** none at start: the camera list comes from the built-in integration, which already fetches it. Each stream asks for the account's stream resources, a stream token and the camera's stream server, then opens one stream, shared and kept as described below.
+
+**Requests to EZVIZ (Open Platform):** a token request and a camera list request each time the integration starts, then a token request whenever a stream starts with less than a day left on the token, so at most about one a week. Opening the card editor or the *Verification codes* dialog lists the cameras (one request per 50 cameras). If that list has a camera the integration has no device for, the account reloads to add it (a token and a camera list request). The card's live stream is opened by the player in the browser. The live camera and each press of *Capture photo* or *Record clip* add one live address request plus the live stream, shared between them, kept while it is read and 20 seconds after. Saving a verification code opens it once to check the code.
 
 ## Limitations
 
@@ -306,7 +324,8 @@ The live camera and the *Capture photo* and *Record clip* buttons open the same 
 - **Battery.** Every live view, photo and clip wakes a battery camera. Watch in short sessions.
 - **H.265 needs a player that supports it** (Safari, Chrome, Edge, the Home Assistant app on most phones); the integration doesn't re-encode.
 - **Live view in notifications** works on the iPhone Home Assistant app. On Android the notification shows a picture.
-- **EZVIZ's free plan ends after 120 days.** EZVIZ lists the developer plan as [free for 120 days](https://ieuopen.ezviz.com/price), counted from your developer registration, not from when you install this integration. EZVIZ support has told users that live streams stop working after that unless you buy a plan. Photos and clips are taken from the live stream, so they stop too; the ones already saved stay in Home Assistant. Their price page doesn't say what else stops, and there's no API to read the end date, so the integration can't warn you in advance. Check your plan in the developer console.
+- **EZVIZ's free plan ends after 120 days.** EZVIZ lists the developer plan as [free for 120 days](https://ieuopen.ezviz.com/price), counted from your developer registration, not from when you install this integration. EZVIZ support has told users that live streams stop working after that unless you buy a plan. Photos and clips are taken from the live stream, so they stop too; the ones already saved stay in Home Assistant. Their price page doesn't say what else stops, and there's no API to read the end date, so the integration can't warn you in advance. Check your plan in the developer console, or switch to the [EZVIZ app account](#without-a-developer-account-the-ezviz-app-account).
+- **The EZVIZ app account depends on the built-in EZVIZ integration.** If it's not loaded (wrong password, two-step verification asked again), streams fail until it is. The stream client in pyezvizapi is new, so treat this mode as a beta.
 - **The card is for administrators.** Other Home Assistant users watch through the live camera entity.
 - **Only live video.** Recordings stored by EZVIZ (cloud or SD card) aren't browsable here; only what this integration saved.
 
@@ -348,7 +367,7 @@ This integration is free and open source, and stays that way — every feature i
 
 ## Legal notice
 
-EZVIZ is a trademark of its owner. This project is not affiliated with, endorsed by or supported by EZVIZ. It only uses the documented EZVIZ Open Platform API and web player, with credentials each user creates for their own account.
+EZVIZ is a trademark of its owner. This project is not affiliated with, endorsed by or supported by EZVIZ. It uses the documented EZVIZ Open Platform API and web player with credentials each user creates for their own account or, on the EZVIZ app account, the open-source pyezvizapi library with the user's own login.
 
 ## License
 

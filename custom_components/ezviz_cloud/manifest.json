@@ -1,6 +1,7 @@
 {
   "domain": "ezviz_cloud",
   "name": "EZVIZ Cloud",
+  "after_dependencies": ["ezviz"],
   "codeowners": ["@bvis"],
   "config_flow": true,
   "dependencies": ["ffmpeg", "frontend", "http", "media_source", "websocket_api"],

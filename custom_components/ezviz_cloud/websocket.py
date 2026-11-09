@@ -1,4 +1,4 @@
-"""Websocket commands the card uses: a playable token and the camera list."""
+"""Websocket commands the card uses: what to play and the camera list."""
 
 from __future__ import annotations
 
@@ -14,7 +14,9 @@ from homeassistant.components.websocket_api.decorators import (
 )
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 
+from .account import OpenPlatformAccount
 from .api import Camera, EzvizCloudError
 from .const import CONF_CODES, DATA_RECORDER, DOMAIN, MODE_RECORD
 
@@ -51,15 +53,33 @@ async def ws_get_token(
     """Return an access token and API domain, plus the camera's stored code if any.
 
     With a serial, the account that holds a code for it wins, so a card only
-    needs the serial even when several accounts are set up.
+    needs the serial even when several accounts are set up. On the EZVIZ app
+    account there is no token for the browser: the card shows the live camera
+    instead, and records with the clip button.
     """
     entries = [e for e in _loaded_entries(hass) if msg.get("entry_id") in (None, e.entry_id)]
     if not entries:
         connection.send_error(msg["id"], "not_found", "No loaded EZVIZ Cloud account")
         return
     serial = msg.get("serial")
-    entry = next((e for e in entries if serial in e.options.get(CONF_CODES, {})), entries[0])
-    manager = entry.runtime_data.manager
+    entry = next(
+        (e for e in entries if serial in e.options.get(CONF_CODES, {})),
+        next((e for e in entries if serial in e.runtime_data.modes), entries[0]),
+    )
+    account = entry.runtime_data.account
+    if not isinstance(account, OpenPlatformAccount):
+        registry = er.async_get(hass)
+        serial = serial or next(iter(entry.runtime_data.modes), "")
+        connection.send_result(
+            msg["id"],
+            {
+                "live_entity": registry.async_get_entity_id("camera", DOMAIN, f"{serial}_live"),
+                "record_entity": registry.async_get_entity_id("button", DOMAIN, f"{serial}_record"),
+                "record": entry.runtime_data.modes.get(serial) == MODE_RECORD,
+            },
+        )
+        return
+    manager = account.manager
     try:
         token = await manager.async_get_token()
     except EzvizCloudError as err:
@@ -85,11 +105,9 @@ async def ws_get_devices(
     """List the cameras of every loaded account, for the card editor."""
     devices = []
     for entry in _loaded_entries(hass):
-        manager = entry.runtime_data.manager
         codes = entry.options.get(CONF_CODES, {})
         try:
-            token = await manager.async_get_token()
-            cameras = await manager.api.async_get_cameras(token.token)
+            cameras = await entry.runtime_data.account.async_cameras()
         except EzvizCloudError as err:
             connection.send_error(msg["id"], "api_error", str(err))
             return

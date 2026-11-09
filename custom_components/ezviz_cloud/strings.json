@@ -2,6 +2,14 @@
   "config": {
     "step": {
       "user": {
+        "title": "Connect to EZVIZ",
+        "description": "Pick how Home Assistant reaches your cameras.",
+        "menu_options": {
+          "open_platform": "EZVIZ Open Platform app (AppKey and AppSecret)",
+          "app_account": "EZVIZ app account (the login of the EZVIZ integration)"
+        }
+      },
+      "open_platform": {
         "title": "EZVIZ Open Platform app",
         "description": "Create an app in the EZVIZ developer console of your region (Account Settings → Appkey management) and paste its AppKey and AppSecret.",
         "data": {
@@ -15,6 +23,16 @@
           "app_secret": "The app's secret, shown next to the AppKey in the developer console."
         }
       },
+      "app_account": {
+        "title": "EZVIZ app account",
+        "description": "Uses the account the official EZVIZ integration is logged in with, so there's nothing else to sign up for. Store each camera's verification code in this integration's options.",
+        "data": {
+          "account": "Account"
+        },
+        "data_description": {
+          "account": "An account set up in the EZVIZ integration."
+        }
+      },
       "reauth_confirm": {
         "title": "EZVIZ rejected the AppSecret",
         "description": "EZVIZ no longer accepts the AppSecret of app {app_key}. Paste its current AppSecret from the developer console.",
@@ -26,17 +44,11 @@
         }
       },
       "reconfigure": {
-        "title": "EZVIZ Open Platform app",
-        "description": "Change the region or the AppSecret. To use a different app, add the integration again.",
-        "data": {
-          "region": "Region",
-          "app_key": "AppKey",
-          "app_secret": "AppSecret"
-        },
-        "data_description": {
-          "region": "The region your EZVIZ account belongs to. An AppKey only works in its own region.",
-          "app_key": "Shown next to the app in the developer console.",
-          "app_secret": "The app's secret, shown next to the AppKey in the developer console."
+        "title": "Connect to EZVIZ",
+        "description": "Switching keeps the verification codes, recordings and stream addresses.",
+        "menu_options": {
+          "open_platform": "EZVIZ Open Platform app (AppKey and AppSecret)",
+          "app_account": "EZVIZ app account (the login of the EZVIZ integration)"
         }
       }
     },
@@ -45,10 +57,11 @@
       "cannot_connect": "Could not reach the EZVIZ Open Platform."
     },
     "abort": {
-      "already_configured": "This AppKey is already configured.",
+      "already_configured": "This account is already configured.",
       "reauth_successful": "The AppSecret was updated.",
       "reconfigure_successful": "The settings were updated.",
-      "unique_id_mismatch": "This is a different AppKey. To use another app, add the integration again."
+      "unique_id_mismatch": "This is a different AppKey. To use another app, add the integration again.",
+      "no_ezviz_account": "Set up the official EZVIZ integration with your EZVIZ app account first."
     }
   },
   "selector": {
@@ -113,7 +126,7 @@
     },
     "abort": {
       "not_loaded": "The integration isn't loaded. Fix the account first, then try again.",
-      "cannot_connect": "Could not get the camera list from the EZVIZ Open Platform.",
+      "cannot_connect": "Could not get the camera list from EZVIZ.",
       "no_cameras": "This EZVIZ account has no cameras."
     }
   },
@@ -169,7 +182,7 @@
       "message": "{serial} didn't stream a moment ago. Try again in a minute."
     },
     "cannot_connect": {
-      "message": "Could not reach the EZVIZ Open Platform: {error}"
+      "message": "Could not reach EZVIZ: {error}"
     }
   }
 }

@@ -1,4 +1,5 @@
-"""Config flow: region plus the appKey/appSecret of an EZVIZ Open Platform app."""
+"""Config flow: an EZVIZ Open Platform app (region, AppKey, AppSecret) or the EZVIZ app
+account the official EZVIZ integration is logged in with."""
 
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ from typing import Any
 
 import probatio as vol
 from homeassistant.config_entries import (
+    SOURCE_RECONFIGURE,
     ConfigEntry,
     ConfigEntryState,
     ConfigFlow,
@@ -16,6 +18,7 @@ from homeassistant.config_entries import (
     OptionsFlow,
 )
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.network import NoURLAvailableError, get_url
 from homeassistant.helpers.selector import (
@@ -32,8 +35,10 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
+from .account import EZVIZ_CLOUD_ACCOUNT, EZVIZ_DOMAIN
 from .api import Camera, EzvizCloudApi, EzvizCloudAuthError, EzvizCloudError
 from .const import (
+    CONF_ACCOUNT,
     CONF_APP_KEY,
     CONF_APP_SECRET,
     CONF_CODE,
@@ -73,7 +78,7 @@ DATA_SCHEMA = vol.Schema(
 
 
 class EzvizCloudConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Ask for the Open Platform credentials and check them against the platform."""
+    """Pick where video comes from: an Open Platform app or the EZVIZ app account."""
 
     VERSION = 1
 
@@ -96,20 +101,98 @@ class EzvizCloudConfigFlow(ConfigFlow, domain=DOMAIN):
             return {"base": "cannot_connect"}
         return {}
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_user(self, _user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Open Platform app or EZVIZ app account."""
+        return self.async_show_menu(step_id="user", menu_options=["open_platform", "app_account"])
+
+    async def async_step_reconfigure(
+        self, _user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """The same choice; switching keeps the codes, recordings and stream addresses."""
+        return self.async_show_menu(
+            step_id="reconfigure", menu_options=["open_platform", "app_account"]
+        )
+
+    async def async_step_open_platform(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Ask for the region and the app's credentials."""
         errors: dict[str, str] = {}
+        entry = self._get_reconfigure_entry() if self.source == SOURCE_RECONFIGURE else None
         if user_input is not None:
             data = _clean(user_input)
             await self.async_set_unique_id(data[CONF_APP_KEY])
-            self._abort_if_unique_id_configured()
+            if entry is not None and CONF_APP_KEY in entry.data:
+                # Same kind: only the region or the secret of the same app can change.
+                self._abort_if_unique_id_mismatch()
+            else:
+                self._abort_if_taken(entry)
             errors = await self._async_check(**data)
             if not errors:
-                return self.async_create_entry(title=_title(data), data=data)
+                return self._finish(entry, _title(data), data)
+        suggested = user_input
+        if suggested is None and entry is not None:
+            suggested = {k: v for k, v in entry.data.items() if k != CONF_APP_SECRET}
         return self.async_show_form(
-            step_id="user",
-            data_schema=self.add_suggested_values_to_schema(DATA_SCHEMA, user_input),
+            step_id="open_platform",
+            data_schema=self.add_suggested_values_to_schema(DATA_SCHEMA, suggested),
             errors=errors,
+        )
+
+    async def async_step_app_account(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Pick an account the official EZVIZ integration is logged in with."""
+        accounts = {
+            e.unique_id: e.title
+            for e in self.hass.config_entries.async_entries(EZVIZ_DOMAIN)
+            if e.data.get("type") == EZVIZ_CLOUD_ACCOUNT
+            and e.unique_id
+            and e.state is ConfigEntryState.LOADED
+        }
+        if not accounts:
+            return self.async_abort(reason="no_ezviz_account")
+        entry = self._get_reconfigure_entry() if self.source == SOURCE_RECONFIGURE else None
+        if user_input is not None and user_input[CONF_ACCOUNT] in accounts:
+            account = user_input[CONF_ACCOUNT]
+            await self.async_set_unique_id(f"ezviz_app_{account}")
+            self._abort_if_taken(entry)
+            return self._finish(
+                entry, f"EZVIZ Cloud ({accounts[account]})", {CONF_ACCOUNT: account}
+            )
+        return self.async_show_form(
+            step_id="app_account",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_ACCOUNT, default=next(iter(accounts))): SelectSelector(
+                        SelectSelectorConfig(
+                            options=[
+                                SelectOptionDict(value=uid, label=title)
+                                for uid, title in accounts.items()
+                            ],
+                            mode=SelectSelectorMode.DROPDOWN,
+                        )
+                    )
+                }
+            ),
+        )
+
+    def _abort_if_taken(self, entry: ConfigEntry | None) -> None:
+        """Abort when another entry already uses the flow's unique id."""
+        if entry is None:
+            self._abort_if_unique_id_configured()
+            return
+        for other in self._async_current_entries(include_ignore=False):
+            if other.entry_id != entry.entry_id and other.unique_id == self.unique_id:
+                raise AbortFlow("already_configured")
+
+    def _finish(
+        self, entry: ConfigEntry | None, title: str, data: dict[str, str]
+    ) -> ConfigFlowResult:
+        if entry is None:
+            return self.async_create_entry(title=title, data=data)
+        return self.async_update_reload_and_abort(
+            entry, unique_id=self.unique_id, title=title, data=data
         )
 
     async def async_step_reauth(self, _entry_data: Mapping[str, Any]) -> ConfigFlowResult:
@@ -131,26 +214,6 @@ class EzvizCloudConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="reauth_confirm",
             data_schema=vol.Schema({vol.Required(CONF_APP_SECRET): SECRET_SELECTOR}),
             description_placeholders={"app_key": entry.data[CONF_APP_KEY]},
-            errors=errors,
-        )
-
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        """Change the region or the AppSecret of the same app."""
-        entry = self._get_reconfigure_entry()
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            data = _clean(user_input)
-            await self.async_set_unique_id(data[CONF_APP_KEY])
-            self._abort_if_unique_id_mismatch()
-            errors = await self._async_check(**data)
-            if not errors:
-                return self.async_update_reload_and_abort(entry, title=_title(data), data=data)
-        suggested = user_input or {k: v for k, v in entry.data.items() if k != CONF_APP_SECRET}
-        return self.async_show_form(
-            step_id="reconfigure",
-            data_schema=self.add_suggested_values_to_schema(DATA_SCHEMA, suggested),
             errors=errors,
         )
 
@@ -190,10 +253,8 @@ class EzvizCloudOptionsFlow(OptionsFlow):
 
         if self.config_entry.state is not ConfigEntryState.LOADED:
             return self.async_abort(reason="not_loaded")
-        manager = self.config_entry.runtime_data.manager
         try:
-            token = await manager.async_get_token()
-            cameras = await manager.api.async_get_cameras(token.token)
+            cameras = await self.config_entry.runtime_data.account.async_cameras()
         except EzvizCloudError:
             return self.async_abort(reason="cannot_connect")
         if not cameras:
@@ -238,7 +299,7 @@ class EzvizCloudOptionsFlow(OptionsFlow):
         stream = data.streams.get(serial)
         if stream is None or stream.active:
             return True
-        probe = LiveStream(self.hass, data.manager, stream.camera, lambda: code)
+        probe = LiveStream(self.hass, data.account, stream.camera, lambda: code)
         try:
             await async_grab_jpeg(self.hass, probe)
         except EzvizCloudDecodeError:

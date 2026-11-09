@@ -102,13 +102,14 @@ async def _setup_entry(
     devices: list[MagicMock] | None = None,
     cameras: list[Camera] | None = None,
     options: dict | None = None,
+    data: dict | None = None,
 ) -> tuple[MagicMock, MagicMock]:
     hass = _hass()
     hass.config_entries.async_entries.return_value = others or []
     recorder = MagicMock()
     recorder.store.cleanup.return_value = 0
     hass.data[DATA_RECORDER] = recorder
-    entry = MagicMock(entry_id="this", data=DATA, options=options or {})
+    entry = MagicMock(entry_id="this", data=data or DATA, options=options or {})
     with (
         patch.object(ezviz_cloud, "async_get_clientsession"),
         patch.object(ezviz_cloud, "EzvizCloudApi"),
@@ -158,6 +159,15 @@ async def test_setup_entry_keeps_data_and_forwards_platforms() -> None:
     assert data.streams["BK2"]._code() == "SECRET"
     assert data.streams["BK1"]._code() is None
     hass.config_entries.async_forward_entry_setups.assert_awaited_once()
+
+
+async def test_setup_entry_on_the_app_account() -> None:
+    with patch.object(ezviz_cloud, "AppAccount") as app_cls:
+        app_cls.return_value.async_cameras = AsyncMock(return_value=CAMERAS)
+        hass, entry = await _setup_entry(data={"account": "me@x"})
+    app_cls.assert_called_once_with(hass, "me@x")
+    assert entry.runtime_data.account is app_cls.return_value
+    assert [c.serial for c in entry.runtime_data.cameras] == ["BK1", "BK2"]
 
 
 async def test_setup_entry_drops_the_identifier_0_10_0_borrowed() -> None:

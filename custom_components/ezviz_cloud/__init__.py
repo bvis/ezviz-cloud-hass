@@ -1,4 +1,4 @@
-"""EZVIZ Cloud: live view of EZVIZ cameras through the EZVIZ Open Platform."""
+"""EZVIZ Cloud: live view of EZVIZ cameras through the EZVIZ Open Platform or the EZVIZ app account."""
 
 from __future__ import annotations
 
@@ -25,10 +25,12 @@ from homeassistant.helpers.http import HomeAssistantView
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
+from .account import Account, AppAccount, OpenPlatformAccount
 from .api import Camera, EzvizCloudApi, EzvizCloudAuthError, EzvizCloudError
 from .const import (
     CARD_FILENAME,
     CARD_URL,
+    CONF_ACCOUNT,
     CONF_APP_KEY,
     CONF_APP_SECRET,
     CONF_CODES,
@@ -90,7 +92,7 @@ class PlayerFilesView(HomeAssistantView):
 class EzvizCloudData:
     """What an entry keeps at runtime."""
 
-    manager: TokenManager
+    account: Account
     cameras: list[Camera]
     # Recording mode per serial; the select entities own and restore it.
     modes: dict[str, str]
@@ -135,16 +137,19 @@ async def async_setup(hass: HomeAssistant, _config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -> bool:
     """Validate the credentials, list the cameras and set up their entities."""
-    api = EzvizCloudApi(
-        async_get_clientsession(hass),
-        REGIONS[entry.data[CONF_REGION]],
-        entry.data[CONF_APP_KEY],
-        entry.data[CONF_APP_SECRET],
-    )
-    manager = TokenManager(api)
+    account: Account
+    if CONF_ACCOUNT in entry.data:
+        account = AppAccount(hass, entry.data[CONF_ACCOUNT])
+    else:
+        api = EzvizCloudApi(
+            async_get_clientsession(hass),
+            REGIONS[entry.data[CONF_REGION]],
+            entry.data[CONF_APP_KEY],
+            entry.data[CONF_APP_SECRET],
+        )
+        account = OpenPlatformAccount(hass, TokenManager(api))
     try:
-        token = await manager.async_get_token()
-        listed = await manager.api.async_get_cameras(token.token)
+        listed = await account.async_cameras()
     except EzvizCloudAuthError as err:
         raise ConfigEntryAuthFailed(f"EZVIZ rejected the appKey/appSecret: {err}") from err
     except EzvizCloudError as err:
@@ -170,7 +175,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
             continue
         cameras.setdefault(camera.serial, camera)
     entry.runtime_data = EzvizCloudData(
-        manager, list(cameras.values()), dict.fromkeys(cameras, MODE_VIEW)
+        account, list(cameras.values()), dict.fromkeys(cameras, MODE_VIEW)
     )
     stream_token: str | None = entry.options.get(CONF_STREAM_TOKEN)
     if stream_token is None:
@@ -185,7 +190,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
             return code
 
         entry.runtime_data.streams[camera.serial] = LiveStream(
-            hass, manager, camera, _code, stream_token
+            hass, account, camera, _code, stream_token
         )
     # 0.10.0 gave each device the official ezviz integration's identifier too, to
     # share its device; Home Assistant keeps devices per integration, so drop it.

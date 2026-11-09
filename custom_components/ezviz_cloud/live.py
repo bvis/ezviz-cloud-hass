@@ -8,8 +8,8 @@ and it closes ``LINGER`` seconds after the last one leaves, so a doorbell that
 records a clip and sends a live notification opens it once.
 
 The stream is decrypted pack by pack (a pack holds one frame) in the executor,
-and each reader starts at a keyframe. Requests to EZVIZ per open: one
-``live/url/ezopen`` request plus the live WebSocket, kept only while read.
+and each reader starts at a keyframe. The account says where the video comes
+from, and what each open costs in requests to EZVIZ; it is kept only while read.
 """
 
 from __future__ import annotations
@@ -24,16 +24,15 @@ from typing import TYPE_CHECKING
 
 from aiohttp import web
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.http import KEY_HASS, HomeAssistantView
 
 from .api import Camera, EzvizCloudError
 from .const import DOMAIN
-from .snapshot import PackSplitter, async_iter_stream, async_ps_to_jpeg, decrypt_packs
-from .token import TokenManager
+from .snapshot import PackSplitter, async_ps_to_jpeg, decrypt_packs
 
 if TYPE_CHECKING:
     from . import EzvizCloudConfigEntry
+    from .account import Account
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,13 +64,13 @@ class LiveStream:
     def __init__(
         self,
         hass: HomeAssistant,
-        manager: TokenManager,
+        account: Account,
         camera: Camera,
         code: Callable[[], str | None],
         token: str | None = None,
     ) -> None:
         self._hass = hass
-        self._manager = manager
+        self._account = account
         self.camera = camera
         self._code = code
         self._readers: set[asyncio.Queue[_Item]] = set()
@@ -158,23 +157,20 @@ class LiveStream:
         end: _Item = None
         try:
             code = self._code()
-            token = await self._manager.async_get_token()
-            url = await self._manager.api.async_live_url(
-                token.token, self.camera.serial, self.camera.channel, code
-            )
             # The stream opens with a group of pictures that doesn't decode; with a
             # code, decrypting it garbles it further. Readers start at the next one.
             packs = PackSplitter(skip_first_group=bool(code))
-            async for data in async_iter_stream(async_get_clientsession(self._hass), url):
-                if not (batch := packs.feed(data)):
-                    continue
-                self.codec = packs.codec
-                clear = await self._hass.async_add_executor_job(
-                    decrypt_packs, [p for p, _ in batch], code, packs.codec
-                )
-                for pack, (_, keyframe) in zip(clear, batch, strict=True):
-                    self._broadcast((pack, keyframe))
-                    self._video = self._video or keyframe
+            async with contextlib.aclosing(self._account.async_stream(self.camera, code)) as source:
+                async for data in source:
+                    if not (batch := packs.feed(data)):
+                        continue
+                    self.codec = packs.codec
+                    clear = await self._hass.async_add_executor_job(
+                        decrypt_packs, [p for p, _ in batch], code, packs.codec
+                    )
+                    for pack, (_, keyframe) in zip(clear, batch, strict=True):
+                        self._broadcast((pack, keyframe))
+                        self._video = self._video or keyframe
         except EzvizCloudError as err:
             _LOGGER.debug("Live stream of %s failed: %s", self.camera.serial, err)
             end = err
