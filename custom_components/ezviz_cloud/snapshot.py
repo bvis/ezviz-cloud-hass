@@ -246,7 +246,8 @@ def _decrypt(ps: bytes, code: str, codec: str) -> bytes:
 
     The NAL header stays in the clear: two bytes in H.265, one in H.264.
     """
-    from pyezvizapi.cloud_stream import decrypt_hikvision_ps_video  # type: ignore[attr-defined]
+    # Top-level name: 1.x keeps it in cloud_stream/stream, 2.x in streaming.media
+    from pyezvizapi import decrypt_hikvision_ps_video  # type: ignore[attr-defined]
 
     return decrypt_hikvision_ps_video(ps, code, nalu_header_size=1 if codec == "h264" else 2)
 

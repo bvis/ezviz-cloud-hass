@@ -297,14 +297,14 @@ async def test_stream_wraps_websocket_errors() -> None:
 @pytest.mark.parametrize(("codec", "header"), [("hevc", 2), ("h264", 1)])
 def test_decrypt_uses_pyezvizapi(monkeypatch: pytest.MonkeyPatch, codec: str, header: int) -> None:
     monkeypatch.setattr(
-        "pyezvizapi.cloud_stream.decrypt_hikvision_ps_video",
+        "pyezvizapi.decrypt_hikvision_ps_video",
         lambda ps, code, nalu_header_size: ps + code.encode() + bytes([nalu_header_size]),
     )
     assert _decrypt(b"ps-", "KEY", codec) == b"ps-KEY" + bytes([header])
 
 
 def test_pyezvizapi_still_has_the_decrypt_we_call() -> None:
-    from pyezvizapi.cloud_stream import decrypt_hikvision_ps_video  # type: ignore[attr-defined]
+    from pyezvizapi import decrypt_hikvision_ps_video
 
     params = inspect.signature(decrypt_hikvision_ps_video).parameters
     assert "nalu_header_size" in params

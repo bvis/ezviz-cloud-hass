@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Keeps working when Home Assistant moves to pyezvizapi 2.** Photos, clips and the live camera use pyezvizapi to decrypt the video, and its 2.0 release moved that function. The integration now finds it in both versions, so it won't clash with the built-in EZVIZ integration when that one updates. **Requests to EZVIZ:** no change.
+
 ## [0.12.0] - 2026-11-05
 
 ### Added
