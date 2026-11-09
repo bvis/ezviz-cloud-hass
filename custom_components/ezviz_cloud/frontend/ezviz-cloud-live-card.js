@@ -337,6 +337,17 @@ const pickLang = (hass) => {
 const t = (lang, key, vars = {}) =>
   STRINGS[lang][key].replace(/\{(\w+)\}/g, (_, k) => vars[k]);
 
+// The <video> Home Assistant's camera card plays, deep in its shadow roots
+// (HLS and WebRTC players both use one).
+const findVideo = (root) => {
+  for (const el of (root.shadowRoot || root).querySelectorAll("*")) {
+    if (el.tagName === "VIDEO") return el;
+    const inner = el.shadowRoot && findVideo(el.shadowRoot);
+    if (inner) return inner;
+  }
+  return null;
+};
+
 class EzvizCloudLiveCard extends HTMLElement {
   // Async: the frontend awaits it, so the serial field can list the account's
   // cameras. Falls back to a text field when the list can't be fetched.
@@ -639,8 +650,20 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
     live.hass = this._hass;
     live.style.cssText = "position:absolute;inset:0";
     this._live = live;
-    this._hideProgress();
-    this._box.appendChild(live);
+    // Under the progress overlay, which stays until the video actually plays: a
+    // battery camera takes several seconds to wake and the camera card shows
+    // nothing meanwhile.
+    this._box.insertBefore(live, this._overlay);
+    this._showProgress(30, "waking_camera");
+    this._watch = setInterval(() => {
+      const video = findVideo(live);
+      // The player is up and waiting for the camera's first frames.
+      if (video) this._showProgress(70);
+      if (video && video.readyState >= 2 && video.currentTime > 0) {
+        clearInterval(this._watch);
+        this._hideProgress();
+      }
+    }, 500);
     const stop = document.createElement("button");
     stop.textContent = `■ ${t(this._lang, "stop")}`;
     stop.style.cssText =
@@ -656,7 +679,10 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
       this._box.appendChild(this._recButton);
       if (auth.record) this._recordClip(auth.record_entity);
     }
-    this._timer = setTimeout(() => this._stop(), this._config.max_seconds * 1000);
+    this._timer = setTimeout(
+      () => (this._overlay ? this._fail(t(this._lang, "no_video", { s: this._config.max_seconds })) : this._stop()),
+      this._config.max_seconds * 1000,
+    );
   }
 
   // The clip button reads the same stream the card shows and returns once the clip is saved.
@@ -776,6 +802,7 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
 
   _stop(message = "", render = false, flushed = false) {
     clearTimeout(this._timer);
+    clearInterval(this._watch);
     // Recording: let the recorder hand over what it still holds (Chrome emits MP4
     // in fragments of several seconds) before the iframe goes away.
     const frame = this._box?.querySelector("iframe")?.contentWindow;
