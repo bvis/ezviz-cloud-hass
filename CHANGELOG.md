@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.13.0] - unreleased
 
 ### Added
 - **EZVIZ app account, no developer account needed.** Add the integration with *EZVIZ app account* and it uses the login of Home Assistant's built-in EZVIZ integration instead of an Open Platform app, so it keeps working after the Open Platform's 120-day free plan. The verification codes stay in this integration's options. Photos, clips, the live camera and the address for other apps work the same; the card shows the live camera, and its Record button saves a clip. An Open Platform entry switches with *Reconfigure* and keeps its codes, recordings and entities. **Requests to EZVIZ:** on this account, none at start (the camera list comes from the built-in integration); each stream asks for the stream resources, a stream token and the stream server, then opens one stream.
