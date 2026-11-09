@@ -13,6 +13,9 @@
 // looks up its DOM with document.getElementById, which cannot reach inside
 // Home Assistant's shadow roots, so it runs in an iframe srcdoc. The iframe is
 // sandboxed: the player gets an origin of its own, apart from Home Assistant's.
+//
+// On the EZVIZ app account there is no browser token: the card shows the
+// integration's live camera, which Home Assistant streams, instead.
 
 // The player and its decoders ship with the integration, which serves them;
 // keep the version in step with EZUIKIT_VERSION in const.py.
@@ -383,10 +386,11 @@ class EzvizCloudLiveCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (this._live) this._live.hass = hass;
     // setConfig renders before hass arrives; redraw once the language is known,
     // unless a stream is on screen.
     const lang = pickLang(hass);
-    if (lang !== this._lang && this._config && !this._overlay && !this._box?.querySelector("iframe")) {
+    if (lang !== this._lang && this._config && !this._overlay && !this._box?.querySelector("iframe") && !this._live) {
       this._render(this._message);
     }
   }
@@ -420,6 +424,7 @@ class EzvizCloudLiveCard extends HTMLElement {
       </div>`;
     this._box = this._card.firstElementChild;
     this._recButton = null;
+    this._live = null;
     this._box.firstElementChild.textContent = message;
     this._box.querySelector("button").textContent = t(this._lang, "watch_live");
     this._box.querySelector("button").addEventListener("click", () => this._play());
@@ -476,6 +481,7 @@ class EzvizCloudLiveCard extends HTMLElement {
       );
       return;
     }
+    if (auth.live_entity) return this._playEntity(auth);
     // Record mode lives in the integration; an older integration just answers an error.
     this._session = null;
     try {
@@ -612,6 +618,61 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
     );
   }
 
+  // EZVIZ app account: no token for the browser. Show the integration's live
+  // camera (Home Assistant streams it), and record with its clip button.
+  async _playEntity(auth) {
+    let live;
+    try {
+      const helpers = await window.loadCardHelpers();
+      live = await helpers.createCardElement({
+        type: "picture-entity",
+        entity: auth.live_entity,
+        camera_view: "live",
+        show_name: false,
+        show_state: false,
+      });
+    } catch (err) {
+      this._fail(t(this._lang, "could_not_start", { msg: err.message || err }));
+      return;
+    }
+    if (!this.isConnected) return;
+    live.hass = this._hass;
+    live.style.cssText = "position:absolute;inset:0";
+    this._live = live;
+    this._hideProgress();
+    this._box.appendChild(live);
+    const stop = document.createElement("button");
+    stop.textContent = `■ ${t(this._lang, "stop")}`;
+    stop.style.cssText =
+      "position:absolute;right:8px;bottom:8px;z-index:1;font:inherit;font-size:12px;padding:4px 10px;border:0;border-radius:12px;cursor:pointer;background:rgba(0,0,0,.6);color:#fff";
+    stop.addEventListener("click", () => this._stop());
+    this._box.appendChild(stop);
+    if (auth.record_entity) {
+      this._recButton = document.createElement("button");
+      this._recButton.style.cssText =
+        "position:absolute;left:8px;bottom:8px;z-index:1;font:inherit;font-size:12px;padding:4px 10px;border:0;border-radius:12px;cursor:pointer;background:rgba(0,0,0,.6);color:#fff";
+      this._recButton.textContent = t(this._lang, "record");
+      this._recButton.addEventListener("click", () => this._recordClip(auth.record_entity));
+      this._box.appendChild(this._recButton);
+      if (auth.record) this._recordClip(auth.record_entity);
+    }
+    this._timer = setTimeout(() => this._stop(), this._config.max_seconds * 1000);
+  }
+
+  // The clip button reads the same stream the card shows and returns once the clip is saved.
+  async _recordClip(entity) {
+    if (this._recButton) this._recButton.disabled = true;
+    this._setBadge(t(this._lang, "recording"));
+    try {
+      await this._hass.callService("button", "press", { entity_id: entity });
+      this._setBadge(null);
+    } catch (err) {
+      this._setBadge(t(this._lang, "recording_failed"));
+      setTimeout(() => this._setBadge(null), 5000);
+    }
+    if (this._recButton) this._recButton.disabled = false;
+  }
+
   // Record / Stop recording during the live view, whatever the camera's mode.
   _paintRecordButton() {
     if (!this._box?.querySelector("iframe")) return;
@@ -732,7 +793,7 @@ player.eventEmitter.on('message',(msg,type)=>{if(type==='fetchError')send({error
     window.removeEventListener("message", this._onMessage);
     this._hideProgress();
     this._setBadge(null);
-    if (this._config && (render || this._box?.querySelector("iframe"))) this._render(message);
+    if (this._config && (render || this._live || this._box?.querySelector("iframe"))) this._render(message);
   }
 }
 
@@ -755,6 +816,6 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type: "ezviz-cloud-live-card",
   name: "EZVIZ Cloud live",
-  description: "Live view of an EZVIZ camera through the EZVIZ Open Platform",
+  description: "Live view of an EZVIZ camera through the EZVIZ Open Platform or the EZVIZ app account",
   documentationURL: "https://github.com/bvis/ezviz-cloud-hass",
 });

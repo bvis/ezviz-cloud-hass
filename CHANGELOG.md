@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **EZVIZ app account, no developer account needed.** Add the integration with *EZVIZ app account* and it uses the login of Home Assistant's built-in EZVIZ integration instead of an Open Platform app, so it keeps working after the Open Platform's 120-day free plan. The verification codes stay in this integration's options. Photos, clips, the live camera and the address for other apps work the same; the card shows the live camera, and its Record button saves a clip. An Open Platform entry switches with *Reconfigure* and keeps its codes, recordings and entities. **Requests to EZVIZ:** on this account, none at start (the camera list comes from the built-in integration); each stream asks for the stream resources, a stream token and the stream server, then opens one stream.
+
 ### Fixed
 - **Keeps working when Home Assistant moves to pyezvizapi 2.** Photos, clips and the live camera use pyezvizapi to decrypt the video, and its 2.0 release moved that function. The integration now finds it in both versions, so it won't clash with the built-in EZVIZ integration when that one updates. **Requests to EZVIZ:** no change.
 

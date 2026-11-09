@@ -41,22 +41,25 @@ def _hass() -> MagicMock:
 
 
 def _stream(code: str | None = None) -> LiveStream:
-    manager = MagicMock()
-    manager.async_get_token = AsyncMock(return_value=MagicMock(token="tok"))
-    manager.api.async_live_url = AsyncMock(return_value="wss://vtm/live?dev=BK1")
-    return LiveStream(_hass(), manager, CAM, lambda: code)
+    account = MagicMock()
+    account.async_stream = lambda camera, code: _Upstream.current(camera, code)
+    return LiveStream(_hass(), account, CAM, lambda: code)
 
 
 class _Upstream:
-    """Stands in for the EZVIZ WebSocket: yields what the test feeds it."""
+    """Stands in for the account's stream: yields what the test feeds it."""
+
+    current: _Upstream
 
     def __init__(self) -> None:
         self.queue: asyncio.Queue[bytes | Exception | None] = asyncio.Queue()
         self.opens = 0
         self.closed = 0
+        self.args: list[tuple[Camera, str | None]] = []
 
-    async def __call__(self, _session: object, _url: str) -> AsyncIterator[bytes]:
+    async def __call__(self, camera: Camera, code: str | None) -> AsyncIterator[bytes]:
         self.opens += 1
+        self.args.append((camera, code))
         try:
             while (item := await self.queue.get()) is not None:
                 if isinstance(item, Exception):
@@ -67,13 +70,9 @@ class _Upstream:
 
 
 @pytest.fixture
-def upstream() -> AsyncIterator[_Upstream]:
-    fake = _Upstream()
-    with (
-        patch.object(live, "async_iter_stream", fake),
-        patch.object(live, "async_get_clientsession"),
-    ):
-        yield fake
+def upstream() -> _Upstream:
+    _Upstream.current = fake = _Upstream()
+    return fake
 
 
 async def _take(frames: AsyncIterator[bytes], n: int) -> list[bytes]:
@@ -98,7 +97,7 @@ async def test_readers_share_one_stream_and_start_at_a_keyframe(upstream: _Upstr
     assert await anext(first) == FRAME
     assert await late == [KEY]  # the second reader waits for the next keyframe
     assert upstream.opens == 1
-    stream._manager.api.async_live_url.assert_awaited_once_with("tok", "BK1", 1, None)
+    assert upstream.args == [(CAM, None)]
     await first.aclose()
     await second.aclose()
     await stream.async_close()

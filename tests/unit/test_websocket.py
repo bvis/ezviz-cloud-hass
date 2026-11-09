@@ -9,6 +9,7 @@ import pytest
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.exceptions import Unauthorized
 
+from custom_components.ezviz_cloud.account import OpenPlatformAccount
 from custom_components.ezviz_cloud.api import AccessToken, Camera, EzvizCloudError
 from custom_components.ezviz_cloud.const import DATA_RECORDER
 from custom_components.ezviz_cloud.websocket import (
@@ -27,9 +28,12 @@ def _entry(
     entry_id: str, state: ConfigEntryState = ConfigEntryState.LOADED, codes: dict | None = None
 ) -> MagicMock:
     entry = MagicMock(entry_id=entry_id, state=state, options={"codes": codes or {}})
-    entry.runtime_data.manager.api.domain = "https://ieuopen.ezvizlife.com"
-    entry.runtime_data.manager.api.ezopen_host = "open.ezviz.com"
-    entry.runtime_data.manager.async_get_token = AsyncMock(return_value=AccessToken("at.x", EXPIRY))
+    manager = MagicMock()
+    manager.api.domain = "https://ieuopen.ezvizlife.com"
+    manager.api.ezopen_host = "open.ezviz.com"
+    manager.async_get_token = AsyncMock(return_value=AccessToken("at.x", EXPIRY))
+    entry.runtime_data.account = OpenPlatformAccount(MagicMock(), manager)
+    entry.runtime_data.modes = {}
     return entry
 
 
@@ -58,8 +62,8 @@ async def test_returns_token_of_the_only_loaded_entry() -> None:
 async def test_picks_requested_entry() -> None:
     first, second = _entry("a"), _entry("b")
     await _call([first, second], {"entry_id": "b"})
-    first.runtime_data.manager.async_get_token.assert_not_awaited()
-    second.runtime_data.manager.async_get_token.assert_awaited_once()
+    first.runtime_data.account.manager.async_get_token.assert_not_awaited()
+    second.runtime_data.account.manager.async_get_token.assert_awaited_once()
 
 
 async def test_errors_without_loaded_entry() -> None:
@@ -69,7 +73,9 @@ async def test_errors_without_loaded_entry() -> None:
 
 async def test_reports_token_failure() -> None:
     entry = _entry("a")
-    entry.runtime_data.manager.async_get_token = AsyncMock(side_effect=EzvizCloudError("down"))
+    entry.runtime_data.account.manager.async_get_token = AsyncMock(
+        side_effect=EzvizCloudError("down")
+    )
     conn = await _call([entry], {})
     assert conn.send_error.call_args.args[:2] == (1, "token_error")
 
@@ -100,7 +106,7 @@ async def test_token_includes_stored_code_from_the_account_that_has_it() -> None
     first, second = _entry("a"), _entry("b", codes={"BK1": "ABCDEF"})
     conn = await _call([first, second], {"serial": "BK1"})
     assert conn.send_result.call_args.args[1]["code"] == "ABCDEF"
-    first.runtime_data.manager.async_get_token.assert_not_awaited()
+    first.runtime_data.account.manager.async_get_token.assert_not_awaited()
 
 
 async def test_token_without_stored_code_has_no_code() -> None:
@@ -110,11 +116,11 @@ async def test_token_without_stored_code_has_no_code() -> None:
 
 async def test_devices_lists_cameras_of_every_account() -> None:
     entry = _entry("a", codes={"BK1": "ABCDEF"})
-    entry.runtime_data.manager.api.async_get_cameras = AsyncMock(
+    entry.runtime_data.account.manager.api.async_get_cameras = AsyncMock(
         return_value=[Camera("BK1", 1, "Door", True), Camera("BK2", 1, "Yard", False)]
     )
     conn = await _call([entry, _entry("b", ConfigEntryState.SETUP_ERROR)], {}, ws_get_devices)
-    entry.runtime_data.manager.api.async_get_cameras.assert_awaited_once_with("at.x")
+    entry.runtime_data.account.manager.api.async_get_cameras.assert_awaited_once_with("at.x")
     conn.send_result.assert_called_once_with(
         1,
         [
@@ -151,7 +157,7 @@ def test_new_camera_reloads_the_account() -> None:
 
 async def test_devices_reports_api_failure() -> None:
     entry = _entry("a")
-    entry.runtime_data.manager.api.async_get_cameras = AsyncMock(
+    entry.runtime_data.account.manager.api.async_get_cameras = AsyncMock(
         side_effect=EzvizCloudError("down")
     )
     conn = await _call([entry], {}, ws_get_devices)
@@ -228,3 +234,19 @@ def test_manual_start_records_in_view_mode() -> None:
     conn = MagicMock()
     ws_recording_start(hass, conn, {"id": 1, "type": "x", "serial": "UNKNOWN", "manual": True})
     conn.send_result.assert_called_once_with(1, {"session_id": None})
+
+
+async def test_app_account_token_names_the_live_camera_and_clip_button() -> None:
+    entry = _entry("a")
+    entry.runtime_data.account = MagicMock()
+    entry.runtime_data.modes = {"BK1": "record", "BK2": "view"}
+    with patch("custom_components.ezviz_cloud.websocket.er.async_get") as registry:
+        registry.return_value.async_get_entity_id = lambda domain, _platform, uid: f"{domain}.{uid}"
+        conn = await _call([_entry("op"), entry], {"serial": "BK1"})
+        default = await _call([entry], {})
+    conn.send_result.assert_called_once_with(
+        1,
+        {"live_entity": "camera.BK1_live", "record_entity": "button.BK1_record", "record": True},
+    )
+    # Without a serial, the account's first camera.
+    assert default.send_result.call_args.args[1]["live_entity"] == "camera.BK1_live"
