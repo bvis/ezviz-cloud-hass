@@ -11,5 +11,5 @@
   "issue_tracker": "https://github.com/bvis/ezviz-cloud-hass/issues",
   "loggers": ["pyezvizapi"],
   "requirements": ["pyezvizapi>=1.0.5.0,<3"],
-  "version": "0.13.0-beta.1"
+  "version": "0.13.0"
 }
