@@ -1,6 +1,6 @@
 # EZVIZ Cloud for Home Assistant
 
-[![Marketplace](https://img.shields.io/badge/Marketplace-Custom-orange.svg)](https://www.home-assistant.io/integrations/marketplace/)
+[![Marketplace](https://img.shields.io/badge/Marketplace-Default-41BDF5.svg)](https://www.home-assistant.io/integrations/marketplace/)
 [![GitHub Release](https://img.shields.io/github/release/bvis/ezviz-cloud-hass.svg)](https://github.com/bvis/ezviz-cloud-hass/releases)
 [![Tests](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/ci.yml/badge.svg)](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/ci.yml)
 [![Validate with hassfest](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/hassfest.yaml/badge.svg)](https://github.com/bvis/ezviz-cloud-hass/actions/workflows/hassfest.yaml)
@@ -53,10 +53,10 @@ If you try another model, please open an issue with the result, good or bad, so 
 
 [![Open in the Marketplace](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=bvis&repository=ezviz-cloud-hass&category=integration)
 
-1. Go to **Settings → Marketplace → Add from link** and enter `bvis/ezviz-cloud-hass`. Type is *Integration* if it asks.
+1. Go to **Settings → Marketplace** and search for **EZVIZ Cloud**.
 2. Install **EZVIZ Cloud** and restart Home Assistant if it asks you to.
 
-The Marketplace arrived in Home Assistant 2026.11. On 2026.10, add the same repository as a custom repository in HACS, which was how community integrations were installed before.
+The Marketplace arrived in Home Assistant 2026.11. On 2026.10, search for "EZVIZ Cloud" in HACS, which was how community integrations were installed before.
 
 ### Manual
 
