@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.13.1] - unreleased
+## [0.13.1] - 2026-11-11
 
 ### Security
 - **The live camera's address no longer shows up in the Home Assistant log.** When a battery camera is asleep, Home Assistant logs "Error opening stream" with the address it tried, and that address carried the token that lets anyone watch the camera without logging in. The live camera now passes the token in a parameter Home Assistant hides in its log. Addresses already given to other apps (Frigate, go2rtc) keep working as they are. If you have shared a Home Assistant log from 0.12.0 or 0.13.0, use *Configure → Stream address for other apps → Make new addresses*. **Requests to EZVIZ:** none changed.
