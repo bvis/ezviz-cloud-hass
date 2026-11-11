@@ -227,6 +227,13 @@ async def test_setup_entry_errors(kwargs: dict, raised: type[Exception]) -> None
         await _setup_entry(**kwargs)
 
 
+async def test_setup_entry_auth_failure_is_translated() -> None:
+    with pytest.raises(ConfigEntryAuthFailed) as raised:
+        await _setup_entry(side_effect=EzvizCloudAuthError("bad"))
+    assert raised.value.translation_key == "invalid_auth"
+    assert raised.value.translation_placeholders == {"error": "bad"}
+
+
 async def test_setup_entry_not_ready_is_translated() -> None:
     with pytest.raises(ConfigEntryNotReady) as raised:
         await _setup_entry(side_effect=EzvizCloudError("down"))

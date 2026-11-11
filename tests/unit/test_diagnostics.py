@@ -37,4 +37,6 @@ async def test_app_account_names_its_source() -> None:
     entry.runtime_data.cameras = []
     result = await async_get_config_entry_diagnostics(MagicMock(), entry)
     assert result["source"] == "ezviz_app"
+    assert result["entry"] == {"account": "**REDACTED**"}
+    assert "me@x" not in str(result)
     assert "token_expires_at" not in result

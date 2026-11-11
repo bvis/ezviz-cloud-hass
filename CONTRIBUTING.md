@@ -21,14 +21,14 @@ docker run --rm -v "$PWD":/app -w /app ezviz-cloud-dev make check
 | `make setup` | Configure git hooks (`core.hooksPath = .githooks`) |
 | `make build-docker` | Build the `ezviz-cloud-dev` image |
 | `make check` | Lint, format check, type check, tests and dead code |
-| `make test` | Unit tests with coverage (90% minimum) |
+| `make test` | Unit tests with coverage (95% minimum) |
 | `make format` | Format the code |
 | `make pre-push` | Run the pre-push checks by hand (Python 3.14) |
 
 ## Conventions
 
 - [Conventional Commits](https://www.conventionalcommits.org/) (`feat(card): …`, `fix(token): …`) and semantic versioning.
-- Tests come with the change. Coverage must stay at or above 90%.
+- Tests come with the change. Coverage must stay at or above 95%.
 - `strings.json` is the source of truth for UI text. Every file in `translations/` must have the same keys (a test checks it).
 - `manifest.json` holds the version; `pyproject.toml` mirrors it (a test checks it).
 - Any change to network behaviour states how many extra requests to EZVIZ it makes, in the PR and in the CHANGELOG.

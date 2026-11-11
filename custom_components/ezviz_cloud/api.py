@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
@@ -22,6 +24,16 @@ class EzvizCloudError(Exception):
 
 class EzvizCloudAuthError(EzvizCloudError):
     """The appKey/appSecret pair was rejected."""
+
+
+@contextlib.contextmanager
+def _parsing() -> Iterator[None]:
+    """An answer that isn't shaped as documented (a captive portal's page, a vendor
+    error page) is a failure to retry, not a crash."""
+    try:
+        yield
+    except (AttributeError, KeyError, TypeError, ValueError) as err:
+        raise EzvizCloudError(f"Unexpected answer from EZVIZ: {err!r}") from err
 
 
 @dataclass(frozen=True)
@@ -69,42 +81,48 @@ class EzvizCloudApi:
 
     async def async_get_token(self) -> AccessToken:
         """Request an access token. The platform returns the current one until it expires."""
-        body = await self._post(
-            "/api/lapp/token/get", {"appKey": self._app_key, "appSecret": self._app_secret}
-        )
-        code = str(body.get("code"))
-        if code in _AUTH_ERROR_CODES:
-            raise EzvizCloudAuthError(body.get("msg") or code)
-        data = body.get("data") or {}
-        if code != "200" or not data.get("accessToken"):
-            raise EzvizCloudError(f"Token request failed: {code} {body.get('msg')}")
-        return AccessToken(
-            token=data["accessToken"],
-            expires_at=datetime.fromtimestamp(data["expireTime"] / 1000, tz=UTC),
-        )
+        with _parsing():
+            body = await self._post(
+                "/api/lapp/token/get", {"appKey": self._app_key, "appSecret": self._app_secret}
+            )
+            code = str(body.get("code"))
+            if code in _AUTH_ERROR_CODES:
+                raise EzvizCloudAuthError(body.get("msg") or code)
+            data = body.get("data") or {}
+            if code != "200" or not data.get("accessToken"):
+                raise EzvizCloudError(f"Token request failed: {code} {body.get('msg')}")
+            return AccessToken(
+                token=data["accessToken"],
+                expires_at=datetime.fromtimestamp(data["expireTime"] / 1000, tz=UTC),
+            )
 
     async def async_get_cameras(self, access_token: str) -> list[Camera]:
         """List every camera channel of the account, following the pages."""
         cameras: list[Camera] = []
-        while True:
-            body = await self._post(
-                "/api/lapp/camera/list",
-                {"accessToken": access_token, "pageStart": len(cameras) // 50, "pageSize": 50},
-            )
-            if str(body.get("code")) != "200":
-                raise EzvizCloudError(f"Camera list failed: {body.get('code')} {body.get('msg')}")
-            page = body.get("data") or []
-            cameras += [
-                Camera(
-                    serial=c["deviceSerial"],
-                    channel=int(c.get("channelNo") or 1),
-                    name=c.get("channelName") or c["deviceSerial"],
-                    encrypted=bool(c.get("isEncrypt")),
+        with _parsing():
+            while True:
+                body = await self._post(
+                    "/api/lapp/camera/list",
+                    {"accessToken": access_token, "pageStart": len(cameras) // 50, "pageSize": 50},
                 )
-                for c in page
-            ]
-            if len(page) < 50 or len(cameras) >= int((body.get("page") or {}).get("total") or 0):
-                return cameras
+                if str(body.get("code")) != "200":
+                    raise EzvizCloudError(
+                        f"Camera list failed: {body.get('code')} {body.get('msg')}"
+                    )
+                page = body.get("data") or []
+                cameras += [
+                    Camera(
+                        serial=c["deviceSerial"],
+                        channel=int(c.get("channelNo") or 1),
+                        name=c.get("channelName") or c["deviceSerial"],
+                        encrypted=bool(c.get("isEncrypt")),
+                    )
+                    for c in page
+                ]
+                if len(page) < 50 or len(cameras) >= int(
+                    (body.get("page") or {}).get("total") or 0
+                ):
+                    return cameras
 
     async def async_live_url(
         self, access_token: str, serial: str, channel: int, code: str | None
@@ -121,7 +139,12 @@ class EzvizCloudApi:
                 "userAgent": "HomeAssistant",
             },
         )
-        data = body.get("data") or {}
-        if str(body.get("code")) != "200" or not data.get("url"):
-            raise EzvizCloudError(f"Live URL request failed: {body.get('code')} {body.get('msg')}")
-        return f"{data['url']}&ssn={data['token']}&auth=1&biz=4&cln=100"
+        with _parsing():
+            data = body.get("data") or {}
+            if str(body.get("code")) != "200" or not data.get("url"):
+                raise EzvizCloudError(
+                    f"Live URL request failed: {body.get('code')} {body.get('msg')}"
+                )
+            if "?" not in data["url"]:
+                raise ValueError("live address without parameters")
+            return f"{data['url']}&ssn={data['token']}&auth=1&biz=4&cln=100"

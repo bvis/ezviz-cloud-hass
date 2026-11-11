@@ -7,6 +7,7 @@ from typing import Any
 import probatio as vol
 from homeassistant.components.websocket_api import async_register_command
 from homeassistant.components.websocket_api.connection import ActiveConnection
+from homeassistant.components.websocket_api.const import ERR_UNAUTHORIZED
 from homeassistant.components.websocket_api.decorators import (
     async_response,
     require_admin,
@@ -36,9 +37,6 @@ def _loaded_entries(hass: HomeAssistant) -> list[ConfigEntry]:
     ]
 
 
-# Token and code let anyone watch the camera from outside Home Assistant, so only
-# admins get them; other users watch through the live camera entity.
-@require_admin
 @websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/token",
@@ -53,9 +51,12 @@ async def ws_get_token(
     """Return an access token and API domain, plus the camera's stored code if any.
 
     With a serial, the account that holds a code for it wins, so a card only
-    needs the serial even when several accounts are set up. On the EZVIZ app
-    account there is no token for the browser: the card shows the live camera
-    instead, and records with the clip button.
+    needs the serial even when several accounts are set up. Token and code let
+    anyone watch the camera from outside Home Assistant, so only admins get them.
+
+    On the EZVIZ app account there is no token for the browser: the card shows
+    the live camera instead, and records with the clip button. That answer only
+    names entities, so any user gets it.
     """
     entries = [e for e in _loaded_entries(hass) if msg.get("entry_id") in (None, e.entry_id)]
     if not entries:
@@ -78,6 +79,9 @@ async def ws_get_token(
                 "record": entry.runtime_data.modes.get(serial) == MODE_RECORD,
             },
         )
+        return
+    if not connection.user.is_admin:
+        connection.send_error(msg["id"], ERR_UNAUTHORIZED, "Unauthorized")
         return
     manager = account.manager
     try:
@@ -144,6 +148,8 @@ def _entry_for_serial(hass: HomeAssistant, serial: str) -> ConfigEntry | None:
     )
 
 
+# Only the card's own player records through these, and it only plays for admins.
+@require_admin
 @websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/recording/start",
@@ -169,6 +175,7 @@ def ws_recording_start(
     connection.send_result(msg["id"], {"session_id": session_id})
 
 
+@require_admin
 @websocket_command(
     {vol.Required("type"): f"{DOMAIN}/recording/stop", vol.Required("session_id"): str}
 )

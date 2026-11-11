@@ -233,7 +233,8 @@ class LiveStreamView(HomeAssistantView):
     """Serves a camera's live stream as MPEG-TS to go2rtc and HA's stream worker.
 
     Neither can send Home Assistant credentials, so the stream's random token in
-    the query guards it. The video is copied, not re-encoded.
+    the query guards it: as ``auth`` from the live camera, as ``token`` in the
+    addresses given to other apps. The video is copied, not re-encoded.
     """
 
     url = f"/api/{DOMAIN}/live/{{serial}}"
@@ -244,9 +245,8 @@ class LiveStreamView(HomeAssistantView):
         """Stream MPEG-TS while the client stays connected."""
         hass = request.app[KEY_HASS]
         stream = find_stream(hass, serial)
-        if stream is None or not hmac.compare_digest(
-            request.query.get("token", "").encode(), stream.token.encode()
-        ):
+        given = request.query.get("auth") or request.query.get("token", "")
+        if stream is None or not hmac.compare_digest(given.encode(), stream.token.encode()):
             raise web.HTTPNotFound
         async with contextlib.aclosing(stream.frames()) as frames:
             try:

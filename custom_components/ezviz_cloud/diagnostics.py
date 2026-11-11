@@ -9,9 +9,10 @@ from homeassistant.core import HomeAssistant
 
 from . import EzvizCloudConfigEntry
 from .account import OpenPlatformAccount
-from .const import CONF_APP_KEY, CONF_APP_SECRET, CONF_CODES
+from .const import CONF_ACCOUNT, CONF_APP_KEY, CONF_APP_SECRET, CONF_CODES
 
-TO_REDACT = {CONF_APP_KEY, CONF_APP_SECRET}
+# The account is the EZVIZ user name, usually an e-mail address.
+TO_REDACT = {CONF_ACCOUNT, CONF_APP_KEY, CONF_APP_SECRET}
 
 
 async def async_get_config_entry_diagnostics(

@@ -53,8 +53,9 @@ async def async_iter_stream(
     asleep) and ends after ``idle_timeout`` without one, or when the cloud closes
     the stream. Closing the generator closes the stream.
     """
-    host = stream_url.split("?")[0].replace("/live", "")
-    play_param = "/live?" + stream_url.split("?", 1)[1]
+    address, _, query = stream_url.partition("?")
+    host = address.replace("/live", "")
+    play_param = "/live?" + query
     started = False
     try:
         async with session.ws_connect(host + _WS_QUERY, max_msg_size=0) as ws:

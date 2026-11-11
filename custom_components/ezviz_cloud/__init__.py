@@ -151,7 +151,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: EzvizCloudConfigEntry) -
     try:
         listed = await account.async_cameras()
     except EzvizCloudAuthError as err:
-        raise ConfigEntryAuthFailed(f"EZVIZ rejected the appKey/appSecret: {err}") from err
+        raise ConfigEntryAuthFailed(
+            translation_domain=DOMAIN,
+            translation_key="invalid_auth",
+            translation_placeholders={"error": str(err)},
+        ) from err
     except EzvizCloudError as err:
         raise ConfigEntryNotReady(
             translation_domain=DOMAIN,

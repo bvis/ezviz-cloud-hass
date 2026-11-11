@@ -123,7 +123,7 @@ max_seconds: 60          # optional, default 60
 
 `code: ABCDEF` still works on the card and wins over the stored one, but anyone who can open the dashboard can read it there.
 
-The card only plays for Home Assistant administrators, because it hands the browser your EZVIZ access token and the camera's code. Other users get a message on the card and watch through the [live camera](#5-the-live-camera-optional) instead.
+On an Open Platform app the card only plays for Home Assistant administrators, because it hands the browser your EZVIZ access token and the camera's code. Other users get a message on the card and watch through the [live camera](#5-the-live-camera-optional) instead. On the EZVIZ app account the card shows that live camera, so it plays for every user.
 
 ### 5. The live camera (optional)
 
@@ -137,7 +137,7 @@ The live camera, *Capture photo* and *Record clip* share one stream per camera: 
 
 #### Other apps (Frigate, go2rtc)
 
-*Configure → Stream address for other apps* shows an address per camera that any app on your network can read without logging in to Home Assistant: the same MPEG-TS stream the live camera plays. The addresses survive restarts; *Make new addresses* there voids them if one leaks. Anyone with an address can watch that camera.
+*Configure → Stream address for other apps* shows an address per camera that an app can read without logging in to Home Assistant: the same MPEG-TS stream the live camera plays. It works from wherever your Home Assistant can be reached, the internet included if you expose it. The addresses survive restarts; *Make new addresses* there voids them if one leaks. Anyone with an address can watch that camera.
 
 A battery camera must not be read all the time, so let an automation turn it on for a minute when something happens (a doorbell relay, a motion sensor). For Frigate (0.16 or later), add the address as a go2rtc stream and switch the camera with MQTT:
 
@@ -326,7 +326,7 @@ On the EZVIZ app account, the same server-side path reads the camera's live stre
 - **Live view in notifications** works on the iPhone Home Assistant app. On Android the notification shows a picture.
 - **EZVIZ's free plan ends after 120 days.** EZVIZ lists the developer plan as [free for 120 days](https://ieuopen.ezviz.com/price), counted from your developer registration, not from when you install this integration. EZVIZ support has told users that live streams stop working after that unless you buy a plan. Photos and clips are taken from the live stream, so they stop too; the ones already saved stay in Home Assistant. Their price page doesn't say what else stops, and there's no API to read the end date, so the integration can't warn you in advance. Check your plan in the developer console, or switch to the [EZVIZ app account](#without-a-developer-account-the-ezviz-app-account).
 - **The EZVIZ app account depends on the built-in EZVIZ integration.** If it's not loaded (wrong password, two-step verification asked again), streams fail until it is. The stream client in pyezvizapi is new; if a camera that worked on the Open Platform fails here, open an issue with a debug log.
-- **The card is for administrators.** Other Home Assistant users watch through the live camera entity.
+- **On an Open Platform app the card is for administrators.** Other Home Assistant users watch through the live camera entity. On the EZVIZ app account the card plays for everyone.
 - **Only live video.** Recordings stored by EZVIZ (cloud or SD card) aren't browsable here; only what this integration saved.
 
 ## Troubleshooting

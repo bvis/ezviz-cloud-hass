@@ -351,3 +351,13 @@ async def test_upload_view_routes_photos() -> None:
     assert resp.status == 200
     sessions.add_photo.assert_awaited_once_with("sid", b"jpg")
     sessions.append.assert_not_awaited()
+
+
+async def test_upload_is_admin_only() -> None:
+    sessions = MagicMock()
+    request = _request(sessions)
+    request.__getitem__.return_value.is_admin = False
+    resp = await RecordingUploadView().post(request, "sid")
+    assert resp.status == 403
+    assert request.read_blocks == []
+    sessions.target.assert_not_called()
