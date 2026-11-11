@@ -75,6 +75,8 @@ rules:
   stale-devices: done
 
   # Platinum
-  async-dependency: done
+  async-dependency:
+    status: done
+    comment: The Open Platform client is asyncio. On the EZVIZ app account the stream is read with pyezvizapi, which is not; it runs in a thread of its own.
   inject-websession: done
   strict-typing: done

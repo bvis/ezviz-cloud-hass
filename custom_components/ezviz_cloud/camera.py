@@ -82,4 +82,6 @@ class EzvizCloudLive(EzvizCloudLastPhoto):
         scheme = "https" if api is not None and api.use_ssl else "http"
         port = api.port if api is not None else 8123
         token = self._data.streams[self._serial].token
-        return f"{scheme}://127.0.0.1:{port}/api/{DOMAIN}/live/{self._serial}?token={token}"
+        # `auth`, not `token`: Home Assistant's stream names its source when it fails
+        # to open (routine while a battery camera sleeps) and only hides that parameter.
+        return f"{scheme}://127.0.0.1:{port}/api/{DOMAIN}/live/{self._serial}?auth={token}"

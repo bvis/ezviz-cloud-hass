@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - unreleased
+
+### Security
+- **The live camera's address no longer shows up in the Home Assistant log.** When a battery camera is asleep, Home Assistant logs "Error opening stream" with the address it tried, and that address carried the token that lets anyone watch the camera without logging in. The live camera now passes the token in a parameter Home Assistant hides in its log. Addresses already given to other apps (Frigate, go2rtc) keep working as they are. If you have shared a Home Assistant log from 0.12.0 or 0.13.0, use *Configure → Stream address for other apps → Make new addresses*. **Requests to EZVIZ:** none changed.
+- **Only administrators can record from the card's player.** Any logged-in user could open a recording and upload a file to it, which then showed as the camera's last photo, and enough of them pushed the real recordings out. Since 0.12.0 the player only works for administrators, so nobody loses anything. The *Record clip* and *Capture photo* buttons work as before. **Requests to EZVIZ:** none changed.
+- Diagnostics no longer include the EZVIZ account name on the EZVIZ app account.
+
+### Changed
+- **On the EZVIZ app account the card plays for every user**, not only administrators: there it shows the live camera and hands the browser no token or code. On an Open Platform app it stays administrators only. **Requests to EZVIZ:** none changed.
+
+### Fixed
+- **Setup retries when EZVIZ answers something unexpected.** A page that isn't the usual answer (a captive portal, an EZVIZ error page) left the integration in "Failed to set up" until a restart, and showed "Unknown error" when adding it. It now counts as "could not reach EZVIZ": setup retries on its own and the form says so. **Requests to EZVIZ:** the usual retries of a setup that could not connect, where there were none.
+- The "EZVIZ rejected the AppKey/AppSecret" message of a failed setup is now translated.
+
 ## [0.13.0] - 2026-11-11
 
 ### Added

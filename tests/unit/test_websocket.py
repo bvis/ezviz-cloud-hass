@@ -37,10 +37,13 @@ def _entry(
     return entry
 
 
-async def _call(entries: list[MagicMock], msg: dict, handler=ws_get_token) -> MagicMock:  # type: ignore[no-untyped-def]
+async def _call(  # type: ignore[no-untyped-def]
+    entries: list[MagicMock], msg: dict, handler=ws_get_token, admin: bool = True
+) -> MagicMock:
     hass = MagicMock()
     hass.config_entries.async_entries.return_value = entries
     connection = MagicMock()
+    connection.user.is_admin = admin
     handler(hass, connection, {"id": 1, **msg})
     await hass.async_create_background_task.call_args.args[0]
     return connection
@@ -80,14 +83,22 @@ async def test_reports_token_failure() -> None:
     assert conn.send_error.call_args.args[:2] == (1, "token_error")
 
 
-@pytest.mark.parametrize("handler", [ws_get_token, ws_get_devices])
-def test_token_and_devices_are_admin_only(handler) -> None:  # type: ignore[no-untyped-def]
+@pytest.mark.parametrize("handler", [ws_get_devices, ws_recording_start, ws_recording_stop])
+def test_devices_and_recording_are_admin_only(handler) -> None:  # type: ignore[no-untyped-def]
     hass = MagicMock()
     connection = MagicMock()
     connection.user.is_admin = False
     with pytest.raises(Unauthorized):
         handler(hass, connection, {"id": 1})
     hass.async_create_background_task.assert_not_called()
+
+
+async def test_open_platform_token_is_admin_only() -> None:
+    entry = _entry("a")
+    conn = await _call([entry], {}, admin=False)
+    conn.send_error.assert_called_once_with(1, "unauthorized", "Unauthorized")
+    conn.send_result.assert_not_called()
+    entry.runtime_data.account.manager.async_get_token.assert_not_awaited()
 
 
 def test_registers_command() -> None:
@@ -250,3 +261,15 @@ async def test_app_account_token_names_the_live_camera_and_clip_button() -> None
     )
     # Without a serial, the account's first camera.
     assert default.send_result.call_args.args[1]["live_entity"] == "camera.BK1_live"
+
+
+async def test_app_account_token_needs_no_admin() -> None:
+    # It only names entities; Home Assistant's own permissions guard those.
+    entry = _entry("a")
+    entry.runtime_data.account = MagicMock()
+    entry.runtime_data.modes = {"BK1": "view"}
+    with patch("custom_components.ezviz_cloud.websocket.er.async_get") as registry:
+        registry.return_value.async_get_entity_id = lambda domain, _platform, uid: f"{domain}.{uid}"
+        conn = await _call([entry], {"serial": "BK1"}, admin=False)
+    conn.send_error.assert_not_called()
+    assert conn.send_result.call_args.args[1]["live_entity"] == "camera.BK1_live"

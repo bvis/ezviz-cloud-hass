@@ -8,6 +8,9 @@ name: Newest HA core
 # change in any release. A beta lands about a week before each stable, so the
 # daily run turns a break there into a red build while there is still time to react.
 #
+# A second job runs the same tests on the oldest core we declare (hacs.json), so
+# a helper that only newer cores have doesn't slip in.
+#
 # Not a required check: a broken beta must not block merges.
 
 on:
@@ -26,17 +29,26 @@ permissions:
 
 jobs:
   test:
+    name: Core ${{ matrix.core }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        core: [newest, floor]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Run unit tests against the newest core
+      - name: Run unit tests against that core
         env:
           HA_VERSION: ${{ inputs.ha_version }}
+          CORE: ${{ matrix.core }}
         run: |
-          docker run --rm -e HA_VERSION -v "$(pwd)":/app -w /app python:3.14-slim bash -c '
+          docker run --rm -e HA_VERSION -e CORE -v "$(pwd)":/app -w /app python:3.14-slim bash -c '
             set -euo pipefail
             apt-get update -qq && apt-get install -y -qq --no-install-recommends gcc libc-dev >/dev/null
             pip install --quiet --no-cache-dir --root-user-action=ignore packaging
+            if [ -z "$HA_VERSION" ] && [ "$CORE" = floor ]; then
+              HA_VERSION=$(python3 -c "import json; print(json.load(open(\"hacs.json\"))[\"homeassistant\"])")
+            fi
             if [ -z "$HA_VERSION" ]; then
               HA_VERSION=$(python3 -c "
           import json, urllib.request

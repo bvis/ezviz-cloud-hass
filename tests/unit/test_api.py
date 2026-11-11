@@ -126,3 +126,43 @@ async def test_live_url_reports_platform_error() -> None:
     api, _ = _api({"code": "60019", "msg": "nope"})
     with pytest.raises(EzvizCloudError, match="60019"):
         await api.async_live_url("at.x", "BK1", 1, "CODE")
+
+
+async def test_a_body_that_is_not_json_is_a_generic_error() -> None:
+    # A captive portal or a vendor error page answers HTML with a 200.
+    api, _ = _api()
+    api._session.post.return_value.__aenter__.return_value.json = AsyncMock(
+        side_effect=ValueError("Expecting value")
+    )
+    with pytest.raises(EzvizCloudError, match="Unexpected answer"):
+        await api.async_get_token()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        ["not", "an", "object"],
+        {"code": "200", "data": {"accessToken": "at.abc"}},
+        {"code": "200", "data": {"accessToken": "at.abc", "expireTime": "soon"}},
+    ],
+)
+async def test_malformed_token_answer_is_a_generic_error(body: object) -> None:
+    api, _ = _api(body)  # type: ignore[arg-type]
+    with pytest.raises(EzvizCloudError, match="Unexpected answer"):
+        await api.async_get_token()
+
+
+@pytest.mark.parametrize("data", [[{"channelNo": 1}], ["text"], {"not": "a list"}])
+async def test_malformed_camera_list_is_a_generic_error(data: object) -> None:
+    api, _ = _api({"code": "200", "data": data, "page": {"total": 1}})
+    with pytest.raises(EzvizCloudError, match="Unexpected answer"):
+        await api.async_get_cameras("at.abc")
+
+
+@pytest.mark.parametrize(
+    "data", [{"url": "wss://host/live?dev=BK1"}, {"url": "wss://host/live", "token": "ssn"}]
+)
+async def test_malformed_live_url_is_a_generic_error(data: dict) -> None:
+    api, _ = _api({"code": "200", "data": data})
+    with pytest.raises(EzvizCloudError, match="Unexpected answer"):
+        await api.async_live_url("at.abc", "BK1", 1, None)

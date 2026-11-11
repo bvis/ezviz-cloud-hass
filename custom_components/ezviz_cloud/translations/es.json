@@ -183,6 +183,9 @@
     },
     "cannot_connect": {
       "message": "No se ha podido conectar con EZVIZ: {error}"
+    },
+    "invalid_auth": {
+      "message": "EZVIZ ha rechazado el AppKey/AppSecret: {error}"
     }
   }
 }

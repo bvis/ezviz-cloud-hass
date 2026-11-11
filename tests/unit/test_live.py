@@ -393,14 +393,16 @@ class _Proc:
         return self.returncode
 
 
-def _request(hass: MagicMock, token: str) -> MagicMock:
+def _request(hass: MagicMock, token: str, param: str = "token") -> MagicMock:
     request = MagicMock()
     request.app = {live.KEY_HASS: hass}
-    request.query = {"token": token}
+    request.query = {param: token}
     return request
 
 
-async def _serve(stream: object, token: str, proc: _Proc | None = None):  # type: ignore[no-untyped-def]
+async def _serve(  # type: ignore[no-untyped-def]
+    stream: object, token: str, proc: _Proc | None = None, param: str = "token"
+):
     hass = MagicMock()
     written: list[bytes] = []
     response = MagicMock()
@@ -412,7 +414,7 @@ async def _serve(stream: object, token: str, proc: _Proc | None = None):  # type
         patch.object(live.web, "StreamResponse", return_value=response),
         patch("asyncio.create_subprocess_exec", AsyncMock(return_value=proc or _Proc())) as spawn,
     ):
-        result = await LiveStreamView().get(_request(hass, token), "BK1")
+        result = await LiveStreamView().get(_request(hass, token, param), "BK1")
     return result, written, spawn
 
 
@@ -437,6 +439,19 @@ async def test_view_hides_unknown_cameras_and_bad_tokens(found: bool, token: str
     stream = MagicMock(token="tok") if found else None
     with pytest.raises(web.HTTPNotFound):
         await _serve(stream, token)
+
+
+async def test_view_takes_the_token_as_auth_too() -> None:
+    # The live camera hands Home Assistant an address with `auth`, which its stream
+    # log lines redact; addresses given to other apps carry `token`.
+    async def frames() -> AsyncIterator[bytes]:
+        yield b"key"
+
+    stream = MagicMock(token="tok", frames=frames)
+    _, written, _ = await _serve(stream, "tok", param="auth")
+    assert written == [b"ts:key"]
+    with pytest.raises(web.HTTPNotFound):
+        await _serve(stream, "wrong", param="auth")
 
 
 async def test_view_answers_503_when_the_camera_does_not_stream() -> None:

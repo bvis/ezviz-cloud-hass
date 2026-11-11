@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from aiohttp import web
+from homeassistant.components.http import KEY_HASS_USER
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.http import KEY_HASS, HomeAssistantView
@@ -260,6 +261,9 @@ class RecordingUploadView(HomeAssistantView):
 
     async def post(self, request: web.Request, session_id: str) -> web.Response:
         """Append one chunk to the session's video."""
+        # Like the websocket commands that open and close the session.
+        if not request[KEY_HASS_USER].is_admin:
+            return self.json_message("Administrators only", 403)
         if (request.content_length or 0) > MAX_CHUNK_BYTES:
             return self.json_message("Chunk too large", 413)
         sessions = request.app[KEY_HASS].data[DATA_RECORDER]

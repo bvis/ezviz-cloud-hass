@@ -183,7 +183,12 @@ async def test_live_camera_streams_from_the_local_view(
     entity.hass.config.api = api
     assert entity.unique_id == "BK1_live"
     assert entity.supported_features & CameraEntityFeature.STREAM
-    assert await entity.stream_source() == f"{url}/api/ezviz_cloud/live/BK1?token=tok"
+    source = await entity.stream_source()
+    assert source == f"{url}/api/ezviz_cloud/live/BK1?auth=tok"
+    # Home Assistant puts the source in its stream log lines: the token must not show.
+    from homeassistant.components.stream import redact_credentials
+
+    assert "tok" not in redact_credentials(source)
     assert await entity.async_camera_image() is None
 
 

@@ -148,3 +148,19 @@ async def test_app_account_closing_the_stream_stops_the_reader() -> None:
         await stream.aclose()
     # The reader wakes up and ends quietly: closing was on purpose.
     assert release.wait(1)
+
+
+def test_pyezvizapi_still_has_the_stream_we_call() -> None:
+    import inspect
+
+    from pyezvizapi import open_cloud_stream  # type: ignore[attr-defined]
+
+    # Called as open_cloud_stream(client, serial, timeout=...).
+    signature = inspect.signature(open_cloud_stream)
+    signature.bind(object(), "BK1", timeout=20.0)
+    returned = signature.return_annotation
+    if not inspect.isclass(returned):
+        returned = getattr(inspect.getmodule(open_cloud_stream), returned)
+    stream = returned
+    for method in ("start", "iter_payloads", "close", "__enter__", "__exit__"):
+        assert callable(getattr(stream, method))
