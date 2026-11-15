@@ -122,7 +122,12 @@ class AppAccount:
 
             end: Exception | None = None
             try:
-                stream = open_cloud_stream(client, camera.serial, timeout=_WAKE_TIMEOUT)
+                # Channel 1 is left to the library, which then takes the camera's own
+                # first channel whatever its number; another one is asked for by number.
+                channel = camera.channel if camera.channel != 1 else None
+                stream = open_cloud_stream(
+                    client, camera.serial, channel=channel, timeout=_WAKE_TIMEOUT
+                )
                 holder.append(stream)
                 with stream:
                     stream.start()

@@ -1,15 +1,23 @@
-"""Clip length per camera, used by the record button."""
+"""Clip length per camera, used by the record button, and the channel its stream shows."""
 
 from __future__ import annotations
 
-from homeassistant.components.number import NumberDeviceClass, RestoreNumber
+from dataclasses import replace
+
+from homeassistant.components.number import NumberDeviceClass, NumberMode, RestoreNumber
 from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import EzvizCloudConfigEntry, EzvizCloudData
 from .api import Camera
-from .const import CLIP_MAX_SECONDS, CLIP_MIN_SECONDS, DEFAULT_CLIP_SECONDS
+from .const import (
+    CHANNEL_MAX,
+    CHANNEL_MIN,
+    CLIP_MAX_SECONDS,
+    CLIP_MIN_SECONDS,
+    DEFAULT_CLIP_SECONDS,
+)
 from .entity import EzvizCloudEntity
 
 # Nothing is polled.
@@ -21,9 +29,13 @@ async def async_setup_entry(
     entry: EzvizCloudConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """One clip length per camera."""
+    """One clip length and one channel per camera."""
     data = entry.runtime_data
-    async_add_entities([EzvizCloudClipLength(data, camera) for camera in data.cameras])
+    async_add_entities(
+        cls(data, camera)
+        for camera in data.cameras
+        for cls in (EzvizCloudClipLength, EzvizCloudChannel)
+    )
 
 
 class EzvizCloudClipLength(EzvizCloudEntity, RestoreNumber):
@@ -54,4 +66,43 @@ class EzvizCloudClipLength(EzvizCloudEntity, RestoreNumber):
 
     async def async_set_native_value(self, value: float) -> None:
         self._data.clip_seconds[self._serial] = int(value)
+        self.async_write_ha_state()
+
+
+class EzvizCloudChannel(EzvizCloudEntity, RestoreNumber):
+    """Which channel of the device the live stream, photos and clips show.
+
+    For devices with more than one lens. Off by default: most cameras have one.
+    """
+
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_entity_registry_enabled_default = False
+    _attr_mode = NumberMode.BOX
+    _attr_native_min_value = CHANNEL_MIN
+    _attr_native_max_value = CHANNEL_MAX
+    _attr_native_step = 1
+
+    def __init__(self, data: EzvizCloudData, camera: Camera) -> None:
+        super().__init__(data, camera, "channel")
+
+    @property
+    def native_value(self) -> int:
+        return self._data.streams[self._serial].camera.channel
+
+    def _set(self, channel: int) -> None:
+        stream = self._data.streams[self._serial]
+        stream.camera = replace(stream.camera, channel=channel)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_number_data()
+        if last is not None and last.native_value is not None:
+            value = int(last.native_value)
+            if CHANNEL_MIN <= value <= CHANNEL_MAX:
+                self._set(value)
+
+    async def async_set_native_value(self, value: float) -> None:
+        self._set(int(value))
+        # An open stream is still the old channel: the next viewer opens the new one.
+        await self._data.streams[self._serial].async_close()
         self.async_write_ha_state()

@@ -144,6 +144,9 @@
     "number": {
       "clip_seconds": {
         "name": "Durée du clip"
+      },
+      "channel": {
+        "name": "Canal"
       }
     },
     "camera": {
