@@ -16,7 +16,7 @@ from custom_components.ezviz_cloud.api import Camera
 from custom_components.ezviz_cloud.camera import EzvizCloudLastPhoto, EzvizCloudLive
 from custom_components.ezviz_cloud.camera import async_setup_entry as setup_camera
 from custom_components.ezviz_cloud.const import DATA_RECORDER
-from custom_components.ezviz_cloud.number import EzvizCloudClipLength
+from custom_components.ezviz_cloud.number import EzvizCloudChannel, EzvizCloudClipLength
 from custom_components.ezviz_cloud.number import async_setup_entry as setup_number
 from custom_components.ezviz_cloud.recording import RecordingStore
 from custom_components.ezviz_cloud.select import EzvizCloudMode
@@ -48,14 +48,14 @@ async def test_platforms_add_one_entity_per_camera() -> None:
     entry = MagicMock(runtime_data=_data())
     for setup, cls in (
         (setup_select, EzvizCloudMode),
-        (setup_number, EzvizCloudClipLength),
+        (setup_number, (EzvizCloudClipLength, EzvizCloudChannel)),
         (setup_camera, (EzvizCloudLastPhoto, EzvizCloudLive)),
         (setup_sensor, EzvizCloudLastRecording),
     ):
         add = MagicMock()
         await setup(MagicMock(), entry, add)
         (entities,) = add.call_args.args
-        assert [type(e) for e in entities] == list(cls if isinstance(cls, tuple) else (cls,))
+        assert [type(e) for e in list(entities)] == list(cls if isinstance(cls, tuple) else (cls,))
 
 
 def test_device_and_ids() -> None:
@@ -216,3 +216,38 @@ async def test_live_camera_stops_the_stream_worker_when_the_camera_gave_no_video
 
         await entity.async_will_remove_from_hass()
     assert data.streams["BK1"].on_no_video is None
+
+
+async def test_channel_is_off_by_default_restores_and_reopens_the_stream() -> None:
+    data = _data()
+    stream = data.streams["BK1"] = MagicMock(camera=CAM, async_close=AsyncMock())
+    entity = EzvizCloudChannel(data, CAM)
+    assert entity.entity_registry_enabled_default is False
+    assert entity.native_value == 1
+    entity.hass = MagicMock()
+    entity.async_write_ha_state = MagicMock()  # type: ignore[method-assign]
+    with patch.object(
+        EzvizCloudChannel,
+        "async_get_last_number_data",
+        AsyncMock(return_value=MagicMock(native_value=2.0)),
+    ):
+        await entity.async_added_to_hass()
+    assert stream.camera == Camera("BK1", 2, "Door", True)
+    stream.async_close.assert_not_awaited()
+    await entity.async_set_native_value(3)
+    assert entity.native_value == 3
+    stream.async_close.assert_awaited_once()
+    entity.async_write_ha_state.assert_called_once()
+
+
+async def test_channel_ignores_missing_or_out_of_range_restore() -> None:
+    for restored in (None, MagicMock(native_value=None), MagicMock(native_value=0.0)):
+        data = _data()
+        stream = data.streams["BK1"] = MagicMock(camera=CAM)
+        entity = EzvizCloudChannel(data, CAM)
+        entity.hass = MagicMock()
+        with patch.object(
+            EzvizCloudChannel, "async_get_last_number_data", AsyncMock(return_value=restored)
+        ):
+            await entity.async_added_to_hass()
+        assert stream.camera.channel == 1

@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - unreleased
+
+### Added
+- **Pick the lens of a camera with more than one.** Each camera has a new *Channel* setting, disabled by default: enable it on the device page and set it to 2 to make the live camera, photos and clips show the second lens. It works on the EZVIZ app account and on an Open Platform app. Not yet confirmed on a dual-lens camera (#37). **Requests to EZVIZ:** none added; changing the channel closes the open stream, and the next viewer opens it again.
+
 ## [0.13.1] - 2026-11-11
 
 ### Security

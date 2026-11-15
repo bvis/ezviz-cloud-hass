@@ -58,6 +58,9 @@ MODE_RECORD: Final = "record"
 # Length of the clips the record button saves, set per camera.
 CLIP_MIN_SECONDS: Final = 10
 CLIP_MAX_SECONDS: Final = 60
+# The card's channel field allows the same range.
+CHANNEL_MIN: Final = 1
+CHANNEL_MAX: Final = 64
 DEFAULT_CLIP_SECONDS: Final = 15
 
 CONF_RETENTION_DAYS: Final = "retention_days"

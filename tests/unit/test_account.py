@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import threading
 from collections.abc import Iterator
+from dataclasses import replace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -108,9 +109,18 @@ async def test_app_account_streams_what_the_camera_sends() -> None:
     fake = _FakeVtm([b"a", b"", b"b"])
     with _vtm(fake) as opener:
         assert [d async for d in source.async_stream(CAM, "CODE")] == [b"a", b"b"]
-    opener.assert_called_once_with(entry.runtime_data.ezviz_client, "BK1", timeout=20.0)
+    opener.assert_called_once_with(
+        entry.runtime_data.ezviz_client, "BK1", channel=None, timeout=20.0
+    )
     assert fake.started
     assert fake.closed.wait(1)
+
+
+async def test_app_account_asks_for_another_channel_by_number() -> None:
+    source, entry = _app()
+    with _vtm(_FakeVtm([b"a"])) as opener:
+        assert [d async for d in source.async_stream(replace(CAM, channel=2), None)] == [b"a"]
+    opener.assert_called_once_with(entry.runtime_data.ezviz_client, "BK1", channel=2, timeout=20.0)
 
 
 @pytest.mark.parametrize(
@@ -155,9 +165,9 @@ def test_pyezvizapi_still_has_the_stream_we_call() -> None:
 
     from pyezvizapi import open_cloud_stream  # type: ignore[attr-defined]
 
-    # Called as open_cloud_stream(client, serial, timeout=...).
+    # Called as open_cloud_stream(client, serial, channel=..., timeout=...).
     signature = inspect.signature(open_cloud_stream)
-    signature.bind(object(), "BK1", timeout=20.0)
+    signature.bind(object(), "BK1", channel=2, timeout=20.0)
     returned = signature.return_annotation
     if not inspect.isclass(returned):
         returned = getattr(inspect.getmodule(open_cloud_stream), returned)
