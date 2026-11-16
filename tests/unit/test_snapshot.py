@@ -309,3 +309,54 @@ def test_pyezvizapi_still_has_the_decrypt_we_call() -> None:
     params = inspect.signature(decrypt_hikvision_ps_video).parameters
     assert "nalu_header_size" in params
     assert len([p for p in params.values() if p.default is p.empty]) == 2
+
+
+def test_decrypt_packs_cuts_three_packs_back_in_place(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "custom_components.ezviz_cloud.snapshot._decrypt", lambda ps, code, codec: ps.upper()
+    )
+    assert decrypt_packs([b"ab", b"cde", b"f", b"gh"], "KEY", "h264") == [
+        b"AB",
+        b"CDE",
+        b"F",
+        b"GH",
+    ]
+
+
+# A pack header whose last byte announces two stuffing bytes after it.
+STUFFED_PACK = PACK[:13] + bytes([0xF8 | 2]) + b"\xff\xff"
+
+
+def test_splitter_skips_the_stuffing_after_a_pack_header() -> None:
+    first, frame = STUFFED_PACK + _psm(0x1B) + _pes(b"key"), STUFFED_PACK + _pes(b"p")
+    stream = first + frame + PACK
+    whole = _collect(PackSplitter(skip_first_group=False), stream)
+    assert whole == [(first, True), (frame, False)]
+    for size in (1, 5, 15):
+        chunks = [stream[i : i + size] for i in range(0, len(stream), size)]
+        splitter = PackSplitter(skip_first_group=False)
+        assert _collect(splitter, *chunks) == whole
+        assert splitter.codec == "h264"
+
+
+def test_splitter_reads_the_codec_past_the_program_stream_info() -> None:
+    info = b"\x05\x01\xaa"  # a descriptor before the list of streams
+    entries = bytes([0x1B, 0xE0]) + b"\x00\x00"
+    body = (
+        b"\x80\x01"
+        + len(info).to_bytes(2, "big")
+        + info
+        + len(entries).to_bytes(2, "big")
+        + entries
+    )
+    psm = b"\x00\x00\x01\xbc" + len(body).to_bytes(2, "big") + body
+    splitter = PackSplitter(skip_first_group=False)
+    splitter.feed(PACK + psm + _pes(b"v") + PACK)
+    assert splitter.codec == "h264"
+
+
+async def test_stream_sends_realplay_only_once() -> None:
+    status = _msg(aiohttp.WSMsgType.TEXT, json.dumps({"statusCode": 0}))
+    ws = _FakeWS([status, _HELLO, _HELLO, _msg(aiohttp.WSMsgType.BINARY, b"IMKH")])
+    assert await _read(_session(ws)) == [b"IMKH"]
+    assert len(ws.sent) == 1

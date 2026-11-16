@@ -361,3 +361,29 @@ async def test_upload_is_admin_only() -> None:
     assert resp.status == 403
     assert request.read_blocks == []
     sessions.target.assert_not_called()
+
+
+async def test_session_size_adds_up_across_chunks(tmp_path: Path) -> None:
+    sessions, _, _ = _sessions(tmp_path)
+    sid = sessions.start("BK1")
+    assert sid
+    with (
+        patch("custom_components.ezviz_cloud.recording.MAX_SESSION_BYTES", 4),
+        patch("custom_components.ezviz_cloud.recording.async_dispatcher_send"),
+    ):
+        await sessions.append(sid, b"ab", "video/mp4")
+        await sessions.append(sid, b"cd", "video/mp4")  # exactly at the cap: still fine
+        with pytest.raises(SessionTooLargeError):
+            await sessions.append(sid, b"e", "video/mp4")
+    (video,) = (tmp_path / "ezviz_cloud/BK1").glob("*.mp4")
+    assert video.read_bytes() == b"abcd"
+
+
+@pytest.mark.parametrize("length", [2, None])
+async def test_upload_accepts_a_chunk_exactly_at_the_cap(length: int | None) -> None:
+    sessions = MagicMock()
+    sessions.append = AsyncMock()
+    with patch("custom_components.ezviz_cloud.recording.MAX_CHUNK_BYTES", 2):
+        resp = await RecordingUploadView().post(_request(sessions, length=length), "sid")
+    assert resp.status == 200
+    sessions.append.assert_awaited_once_with("sid", b"ab", "video/mp4")
