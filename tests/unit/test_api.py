@@ -166,3 +166,57 @@ async def test_malformed_live_url_is_a_generic_error(data: dict) -> None:
     api, _ = _api({"code": "200", "data": data})
     with pytest.raises(EzvizCloudError, match="Unexpected answer"):
         await api.async_live_url("at.abc", "BK1", 1, None)
+
+
+async def test_token_error_code_wins_over_a_token_in_the_body() -> None:
+    api, _ = _api(
+        {"code": "49999", "msg": "nope", "data": {"accessToken": "at.abc", "expireTime": 1}}
+    )
+    with pytest.raises(EzvizCloudError, match="Token request failed: 49999 nope"):
+        await api.async_get_token()
+
+
+async def test_auth_error_carries_the_platform_message() -> None:
+    api, _ = _api({"code": "10017", "msg": "AppKey doesn't exist"})
+    with pytest.raises(EzvizCloudAuthError, match="AppKey doesn't exist"):
+        await api.async_get_token()
+
+
+async def test_camera_pages_are_asked_fifty_at_a_time() -> None:
+    api, session = _api(
+        bodies=[
+            {"code": "200", "data": [_cam(i) for i in range(50)], "page": {"total": 60}},
+            {"code": "200", "data": [_cam(i) for i in range(50, 60)], "page": {"total": 60}},
+        ]
+    )
+    assert len(await api.async_get_cameras("at.x")) == 60
+    sent = [c.kwargs["data"] for c in session.post.call_args_list]
+    assert [(d["pageStart"], d["pageSize"]) for d in sent] == [(0, 50), (1, 50)]
+    assert all(type(d["pageStart"]) is int for d in sent)
+
+
+async def test_camera_list_stops_when_a_full_page_is_the_last_one() -> None:
+    api, session = _api(
+        bodies=[{"code": "200", "data": [_cam(i) for i in range(50)], "page": {"total": 50}}]
+    )
+    assert len(await api.async_get_cameras("at.x")) == 50
+    session.post.assert_called_once()
+
+
+async def test_camera_list_stops_on_a_short_page_whatever_the_total_says() -> None:
+    api, session = _api(
+        bodies=[{"code": "200", "data": [_cam(i) for i in range(3)], "page": {"total": 100}}]
+    )
+    assert len(await api.async_get_cameras("at.x")) == 3
+    session.post.assert_called_once()
+
+
+async def test_camera_keeps_its_channel_number() -> None:
+    api, _ = _api({"code": "200", "data": [{"deviceSerial": "NVR", "channelNo": 3}]})
+    assert await api.async_get_cameras("at.x") == [Camera("NVR", 3, "NVR", False)]
+
+
+async def test_live_url_error_code_wins_over_a_url_in_the_body() -> None:
+    api, _ = _api({"code": "60019", "msg": "nope", "data": {"url": "wss://h/live?x", "token": "t"}})
+    with pytest.raises(EzvizCloudError, match="Live URL request failed: 60019 nope"):
+        await api.async_live_url("at.x", "BK1", 1, None)
