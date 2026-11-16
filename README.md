@@ -14,6 +14,10 @@ Watch the live video of your EZVIZ cameras on a Home Assistant dashboard, includ
 
 The built-in EZVIZ integration plays video over local RTSP, so battery devices (which sleep and expose no RTSP port) show nothing. This integration plays the stream the way the EZVIZ app does when you're away from home: through the EZVIZ cloud. The cloud wakes the camera, and the video is decrypted in your browser with the camera's verification code. You never have to turn encryption off.
 
+If it's useful to you, you can support its upkeep:
+
+[![Buy Me a Coffee](https://www.buymeacoffee.com/assets/img/custom_images/yellow_img.png)](https://buymeacoffee.com/basiliovera)
+
 ## Features
 
 - **Live view card** (`custom:ezviz-cloud-live-card`) with a visual editor, shipped with the integration. No Lovelace resource to add by hand.
