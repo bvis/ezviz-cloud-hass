@@ -110,6 +110,9 @@ class PackSplitter:
         self._skip = skip_first_group
         self._keyframe = False
         self.codec = _DEFAULT_CODEC
+        # For the debug log: what the stream carried, whether or not it played.
+        self.groups = 0
+        self.stream_ids: set[int] = set()
 
     def feed(self, data: bytes) -> list[tuple[bytes, bool]]:
         """Add ``data``; return the packs it completed, each with whether it is a keyframe."""
@@ -135,6 +138,7 @@ class PackSplitter:
                 start = None
                 continue
             stream_id = ps[i + 3]
+            self.stream_ids.add(stream_id)
             if stream_id == 0xBA:  # pack header: fixed 14 bytes plus stuffing
                 if i + 14 > len(ps) or i + 14 + (ps[i + 13] & 7) > len(ps):
                     break
@@ -157,6 +161,7 @@ class PackSplitter:
     def _complete(self, pack: bytes, done: list[tuple[bytes, bool]]) -> None:
         if self._keyframe:
             self._groups += 1
+            self.groups = self._groups
         if self._skip and self._groups < 2:
             return
         done.append((pack, self._keyframe))

@@ -155,15 +155,32 @@ class LiveStream:
         """Play the stream and hand each decrypted pack to every reader."""
         self._video = closed = False
         end: _Item = None
+        packs: PackSplitter | None = None
+        received = handed = 0
         try:
             code = self._code()
             # The stream opens with a group of pictures that doesn't decode; with a
             # code, decrypting it garbles it further. Readers start at the next one.
             packs = PackSplitter(skip_first_group=bool(code))
+            _LOGGER.debug(
+                "Live stream of %s: opening channel %s, %s a code",
+                self.camera.serial,
+                self.camera.channel,
+                "with" if code else "without",
+            )
             async with contextlib.aclosing(self._account.async_stream(self.camera, code)) as source:
                 async for data in source:
+                    if not received:
+                        _LOGGER.debug(
+                            "Live stream of %s: first %d bytes start with %s",
+                            self.camera.serial,
+                            len(data),
+                            data[:16].hex(),
+                        )
+                    received += len(data)
                     if not (batch := packs.feed(data)):
                         continue
+                    handed += len(batch)
                     self.codec = packs.codec
                     clear = await self._hass.async_add_executor_job(
                         decrypt_packs, [p for p, _ in batch], code, packs.codec
@@ -178,6 +195,18 @@ class LiveStream:
             closed = True  # on purpose; a linger stop without video already cooled down
             raise
         finally:
+            if packs is not None:
+                _LOGGER.debug(
+                    "Live stream of %s: channel %s closed after %d bytes, %d pictures in "
+                    "%d groups, codec %s, stream ids %s",
+                    self.camera.serial,
+                    self.camera.channel,
+                    received,
+                    handed,
+                    packs.groups,
+                    packs.codec,
+                    sorted(f"{i:02x}" for i in packs.stream_ids),
+                )
             self._task = None
             if not self._video and not closed:
                 self._no_video()
