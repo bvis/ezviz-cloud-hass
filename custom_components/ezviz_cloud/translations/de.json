@@ -147,6 +147,9 @@
       },
       "channel": {
         "name": "Kanal"
+      },
+      "video_track": {
+        "name": "Videospur"
       }
     },
     "camera": {

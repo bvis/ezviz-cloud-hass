@@ -19,6 +19,7 @@ from custom_components.ezviz_cloud.snapshot import (
     async_ps_to_jpeg,
     async_ps_to_mp4,
     decrypt_packs,
+    keep_video,
 )
 
 IMKH = b"IMKH" + b"\x00" * 36
@@ -26,10 +27,10 @@ IMKH = b"IMKH" + b"\x00" * 36
 PACK = b"\x00\x00\x01\xba" + b"\x44\x00\x37\xc6\x84\x01\x00\xf5\xc7\xf8"
 
 
-def _pes(payload: bytes) -> bytes:
-    """A minimal video PES packet (stream id 0xE0) with a zero-length header."""
+def _pes(payload: bytes, stream_id: int = 0xE0) -> bytes:
+    """A minimal PES packet (video stream 0xE0 unless told) with a zero-length header."""
     body = b"\x80\x00\x00" + payload
-    return b"\x00\x00\x01\xe0" + len(body).to_bytes(2, "big") + body
+    return bytes([0, 0, 1, stream_id]) + len(body).to_bytes(2, "big") + body
 
 
 def _psm(stream_type: int = 0x24, other: bytes = b"") -> bytes:
@@ -360,3 +361,42 @@ async def test_stream_sends_realplay_only_once() -> None:
     ws = _FakeWS([status, _HELLO, _HELLO, _msg(aiohttp.WSMsgType.BINARY, b"IMKH")])
     assert await _read(_session(ws)) == [b"IMKH"]
     assert len(ws.sent) == 1
+
+
+def test_keep_video_drops_the_other_video_streams_only() -> None:
+    first, second, audio = _pes(b"one"), _pes(b"two", 0xE1), _pes(b"snd", 0xC0)
+    pack = PACK + _psm() + first + audio + second
+    assert keep_video(pack, 0xE1) == PACK + _psm() + audio + second
+    assert keep_video(pack, 0xE0) == PACK + _psm() + first + audio
+    # A stream with one video track loses it when another is asked for: nothing else.
+    assert keep_video(PACK + first + audio, 0xE1) == PACK + audio
+    # Not a pack: left alone.
+    assert keep_video(b"junk", 0xE1) == b"junk"
+    assert keep_video(PACK + b"junk-after-header", 0xE1) == PACK + b"junk-after-header"
+
+
+def test_splitter_counts_what_each_stream_carried() -> None:
+    idr = b"\x00\x00\x00\x01\x26\x01"  # HEVC NAL type 19
+    trail = b"\x00\x00\x01\x02\x01"  # HEVC NAL type 1, short start code
+    stream = (
+        PACK + _psm() + _pes(idr) + _pes(b"more of it") + _pes(idr, 0xE1)
+        + PACK + _pes(trail) + _pes(b"snd", 0xC0)
+        + PACK
+    )  # fmt: skip
+    splitter = PackSplitter(skip_first_group=False)
+    # Fed in two halves: a pack that is parsed twice is still counted once.
+    _collect(splitter, stream[:40], stream[40:])
+    assert splitter.stats[0xE0] == [3, len(_pes(idr)) + len(_pes(b"more of it")) + len(_pes(trail))]
+    assert splitter.stats[0xE1] == [1, len(_pes(idr, 0xE1))]
+    assert splitter.stats[0xC0][0] == 1
+    assert splitter.nals == {0xE0: {19, 1}, 0xE1: {19}}
+    summary = splitter.summary()
+    assert "e0: 3 packets" in summary
+    assert "NAL types [1, 19]" in summary
+    assert summary.index("bc:") < summary.index("c0:") < summary.index("e0:") < summary.index("e1:")
+
+
+def test_splitter_reads_h264_nal_types() -> None:
+    splitter = PackSplitter(skip_first_group=False)
+    _collect(splitter, PACK + _psm(0x1B) + _pes(b"\x00\x00\x00\x01\x65") + PACK)
+    assert splitter.nals == {0xE0: {5}}

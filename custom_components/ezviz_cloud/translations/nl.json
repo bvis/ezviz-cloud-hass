@@ -147,6 +147,9 @@
       },
       "channel": {
         "name": "Kanaal"
+      },
+      "video_track": {
+        "name": "Videospoor"
       }
     },
     "camera": {

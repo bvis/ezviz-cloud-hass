@@ -184,6 +184,7 @@ Each camera is a device with these entities:
 | *Capture by mode* | Does what the *Mode* says. Wire your doorbell to this one. |
 | *Clip length* | Length of the clips, 10 to 60 seconds (15 by default). |
 | *Channel* | For devices with more than one lens: which one the live camera, photos and clips show (1 by default). Disabled until you enable it on the device page. |
+| *Video track* | For cameras that send two lenses in one stream: 1 or 2 shows only that one; 0 leaves the stream as the camera sends it (the default). Disabled until you enable it on the device page. |
 | *Last photo* | Camera entity that shows the newest photo. |
 | *Last recording* | When the newest photo or video was saved. |
 

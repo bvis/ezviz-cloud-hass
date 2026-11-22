@@ -16,7 +16,11 @@ from custom_components.ezviz_cloud.api import Camera
 from custom_components.ezviz_cloud.camera import EzvizCloudLastPhoto, EzvizCloudLive
 from custom_components.ezviz_cloud.camera import async_setup_entry as setup_camera
 from custom_components.ezviz_cloud.const import DATA_RECORDER
-from custom_components.ezviz_cloud.number import EzvizCloudChannel, EzvizCloudClipLength
+from custom_components.ezviz_cloud.number import (
+    EzvizCloudChannel,
+    EzvizCloudClipLength,
+    EzvizCloudVideoTrack,
+)
 from custom_components.ezviz_cloud.number import async_setup_entry as setup_number
 from custom_components.ezviz_cloud.recording import RecordingStore
 from custom_components.ezviz_cloud.select import EzvizCloudMode
@@ -48,7 +52,7 @@ async def test_platforms_add_one_entity_per_camera() -> None:
     entry = MagicMock(runtime_data=_data())
     for setup, cls in (
         (setup_select, EzvizCloudMode),
-        (setup_number, (EzvizCloudClipLength, EzvizCloudChannel)),
+        (setup_number, (EzvizCloudClipLength, EzvizCloudChannel, EzvizCloudVideoTrack)),
         (setup_camera, (EzvizCloudLastPhoto, EzvizCloudLive)),
         (setup_sensor, EzvizCloudLastRecording),
     ):
@@ -251,3 +255,26 @@ async def test_channel_ignores_missing_or_out_of_range_restore() -> None:
         ):
             await entity.async_added_to_hass()
         assert stream.camera.channel == 1
+
+
+async def test_video_track_is_off_by_default_restores_and_reopens_the_stream() -> None:
+    data = _data()
+    stream = data.streams["BK1"] = MagicMock(camera=CAM, track=0, async_close=AsyncMock())
+    entity = EzvizCloudVideoTrack(data, CAM)
+    assert entity.entity_registry_enabled_default is False
+    assert entity.translation_key == "video_track"
+    assert entity.native_value == 0
+    entity.hass = MagicMock()
+    entity.async_write_ha_state = MagicMock()  # type: ignore[method-assign]
+    for restored, expected in ((99.0, 0), (2.0, 2)):
+        with patch.object(
+            EzvizCloudVideoTrack,
+            "async_get_last_number_data",
+            AsyncMock(return_value=MagicMock(native_value=restored)),
+        ):
+            await entity.async_added_to_hass()
+        assert stream.track == expected
+    assert stream.camera == CAM  # the channel is another setting
+    await entity.async_set_native_value(0)
+    assert entity.native_value == 0
+    stream.async_close.assert_awaited_once()

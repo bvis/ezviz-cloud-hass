@@ -9,9 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Pick the lens of a camera with more than one.** Each camera has a new *Channel* setting, disabled by default: enable it on the device page and set it to 2 to make the live camera, photos and clips show the second lens. It works on the EZVIZ app account and on an Open Platform app. Not yet confirmed on a dual-lens camera (#37). **Requests to EZVIZ:** none added; changing the channel closes the open stream, and the next viewer opens it again.
+- **Pick the video track of a stream that carries two.** Some dual-lens cameras send both lenses in one stream, and the live camera then shows nothing or only the first. The new *Video track* setting, disabled by default, keeps only the track you choose: 1 or 2, with 0 leaving the stream as the camera sends it. Changing it closes the open stream, like *Channel*. Not yet confirmed on a dual-lens camera (#37). **Requests to EZVIZ:** none added.
 
 ### Changed
-- The debug log says what each live stream carried (bytes, pictures, codec), also when it opened and showed nothing (#37). **Requests to EZVIZ:** none.
+- The debug log says what each live stream carried (bytes, pictures, codec), also when it opened and showed nothing, and every ten seconds while it is open it lists each track inside the stream. It also carries what ffmpeg reports when it can't read the live video (#37). **Requests to EZVIZ:** none.
 
 ## [0.13.1] - 2026-11-11
 
