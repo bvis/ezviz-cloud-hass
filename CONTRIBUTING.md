@@ -33,3 +33,15 @@ docker run --rm -v "$PWD":/app -w /app ezviz-cloud-dev make check
 - `manifest.json` holds the version; `pyproject.toml` mirrors it (a test checks it).
 - Any change to network behaviour states how many extra requests to EZVIZ it makes, in the PR and in the CHANGELOG.
 - Link issues with `Relates to #N`, not `Fixes #N`.
+- Commits must be signed, see below.
+
+## Signed commits
+
+`main` only accepts signed commits, so a pull request whose commits show as *Unverified* on GitHub can't be merged. Set signing up once, following GitHub's guides: [telling Git about your signing key](https://docs.github.com/en/authentication/managing-commit-signature-verification/telling-git-about-your-signing-key) (an SSH key is the quickest) and [signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits). `git config --global commit.gpgsign true` then signs every commit you make.
+
+To sign commits you have already pushed, where `N` is the number of commits in your pull request:
+
+```bash
+git rebase --exec "git commit --amend --no-edit -S" HEAD~N
+git push --force-with-lease
+```
