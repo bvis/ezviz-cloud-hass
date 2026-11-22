@@ -147,6 +147,9 @@
       },
       "channel": {
         "name": "Canal"
+      },
+      "video_track": {
+        "name": "Piste vidéo"
       }
     },
     "camera": {

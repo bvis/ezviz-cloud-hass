@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 import aiohttp
 
@@ -113,6 +113,10 @@ class PackSplitter:
         # For the debug log: what the stream carried, whether or not it played.
         self.groups = 0
         self.stream_ids: set[int] = set()
+        # Per stream id: packets, bytes, and for video the kinds of NAL unit that
+        # opened a packet (which says whether that track carries keyframes).
+        self.stats: dict[int, list[int]] = {}
+        self.nals: dict[int, set[int]] = {}
 
     def feed(self, data: bytes) -> list[tuple[bytes, bool]]:
         """Add ``data``; return the packs it completed, each with whether it is a keyframe."""
@@ -158,13 +162,64 @@ class PackSplitter:
         del ps[: start if start is not None else i]
         return done
 
+    def summary(self) -> str:
+        """What each stream id carried so far, for the debug log."""
+        return "; ".join(
+            f"{sid:02x}: {packets} packets, {size} bytes"
+            + (f", NAL types {sorted(self.nals[sid])}" if sid in self.nals else "")
+            for sid, (packets, size) in sorted(self.stats.items())
+        )
+
+    def _count(self, pack: bytes) -> None:
+        for sid, start, end in _packets(pack):
+            entry = self.stats.setdefault(sid, [0, 0])
+            entry[0] += 1
+            entry[1] += end - start
+            if _is_video(sid) and start + 9 <= end:
+                body = pack[start + 9 + pack[start + 8] : end]
+                for code in (b"\x00\x00\x00\x01", b"\x00\x00\x01"):
+                    if body.startswith(code) and len(body) > len(code):
+                        nal = body[len(code)]
+                        kind = nal & 0x1F if self.codec == "h264" else (nal >> 1) & 0x3F
+                        self.nals.setdefault(sid, set()).add(kind)
+                        break
+
     def _complete(self, pack: bytes, done: list[tuple[bytes, bool]]) -> None:
+        self._count(pack)
         if self._keyframe:
             self._groups += 1
             self.groups = self._groups
         if self._skip and self._groups < 2:
             return
         done.append((pack, self._keyframe))
+
+
+def _is_video(stream_id: int) -> bool:
+    return 0xE0 <= stream_id <= 0xEF
+
+
+def _packets(pack: bytes) -> Iterator[tuple[int, int, int]]:
+    """The packets of one pack, after its header: (stream id, start, end)."""
+    if len(pack) < 14:
+        return
+    i = 14 + (pack[13] & 7)
+    while i + 6 <= len(pack) and pack[i : i + 3] == b"\x00\x00\x01":
+        end = min(i + 6 + int.from_bytes(pack[i + 4 : i + 6], "big"), len(pack))
+        yield pack[i + 3], i, end
+        i = end
+
+
+def keep_video(pack: bytes, stream_id: int) -> bytes:
+    """``pack`` without the video packets of any stream but ``stream_id``.
+
+    A camera with two lenses can send both in one stream, as two video streams
+    (0xE0 and 0xE1); a player then shows whichever it meets first.
+    """
+    out = bytearray(pack)
+    for sid, start, end in reversed(list(_packets(pack))):
+        if _is_video(sid) and sid != stream_id:
+            del out[start:end]
+    return bytes(out)
 
 
 def decrypt_packs(packs: list[bytes], code: str | None, codec: str) -> list[bytes]:

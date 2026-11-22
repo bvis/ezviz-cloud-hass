@@ -147,6 +147,9 @@
       },
       "channel": {
         "name": "Canale"
+      },
+      "video_track": {
+        "name": "Traccia video"
       }
     },
     "camera": {

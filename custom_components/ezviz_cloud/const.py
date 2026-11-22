@@ -61,6 +61,8 @@ CLIP_MAX_SECONDS: Final = 60
 # The card's channel field allows the same range.
 CHANNEL_MIN: Final = 1
 CHANNEL_MAX: Final = 64
+# 0 leaves the stream as the camera sent it.
+TRACK_MAX: Final = 16
 DEFAULT_CLIP_SECONDS: Final = 15
 
 CONF_RETENTION_DAYS: Final = "retention_days"

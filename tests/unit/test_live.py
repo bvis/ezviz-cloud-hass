@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import logging
 import sys
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -23,7 +24,7 @@ from custom_components.ezviz_cloud.live import (
     find_stream,
 )
 
-from .test_snapshot import IMKH, PACK, _gop, _pes
+from .test_snapshot import IMKH, PACK, _gop, _pes, _psm
 
 CAM = Camera("BK1", 1, "Door", True)
 KEY, FRAME = _gop(b"key"), PACK + _pes(b"p")
@@ -215,6 +216,31 @@ async def test_close_stops_the_stream_without_a_cooldown(upstream: _Upstream) ->
     await stream.async_close()  # nothing open: no-op
 
 
+async def test_video_track_hands_on_one_of_two_video_streams(
+    upstream: _Upstream, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.DEBUG, logger=live.__name__)
+    monkeypatch.setattr(live, "_REPORT_EVERY", 0)
+    first, second = _pes(b"lens1"), _pes(b"lens2", 0xE1)
+    both = PACK + _psm() + first + second
+    stream = _stream()
+    assert stream.track == 0
+    async with contextlib.aclosing(stream.frames()) as frames:
+        upstream.queue.put_nowait(both + PACK)
+        assert await anext(frames) == both  # as the camera sent it
+    await stream.async_close()
+
+    stream.track = 2
+    async with contextlib.aclosing(stream.frames()) as frames:
+        upstream.queue.put_nowait(both + PACK)
+        assert await anext(frames) == PACK + _psm() + second
+    await stream.async_close()
+    assert "video track as sent" in caplog.text
+    assert "video track 2" in caplog.text
+    assert "so far" in caplog.text
+    assert "e1: 1 packets" in caplog.text
+
+
 async def test_code_decrypts_and_skips_the_first_group(upstream: _Upstream) -> None:
     stream = _stream("SECRET")
     calls = []
@@ -382,6 +408,15 @@ class _Proc:
             async def read(self, _n: int) -> bytes:
                 return await proc._out.get()
 
+        class _Stderr:
+            def __init__(self) -> None:
+                self.lines = [b"pipe:0: Invalid data\n", b""]
+
+            async def readline(self) -> bytes:
+                return self.lines.pop(0)
+
+        self.stderr = _Stderr()
+
         self.stdin = _Stdin()
         self.stdout = _Stdout()
 
@@ -418,7 +453,9 @@ async def _serve(  # type: ignore[no-untyped-def]
     return result, written, spawn
 
 
-async def test_view_remuxes_the_stream_to_mpegts() -> None:
+async def test_view_remuxes_the_stream_to_mpegts(caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.DEBUG, logger=live.__name__)
+
     async def frames() -> AsyncIterator[bytes]:
         yield b"key"
         yield b"next"
@@ -432,6 +469,7 @@ async def test_view_remuxes_the_stream_to_mpegts() -> None:
     assert args[args.index("-c") + 1] == "copy"
     assert args[-2:] == ("mpegts", "pipe:1")
     assert proc.killed
+    assert "Live stream of BK1: ffmpeg: pipe:0: Invalid data" in caplog.text
 
 
 @pytest.mark.parametrize(("found", "token"), [(False, "tok"), (True, "wrong"), (True, "t\u00f6k")])

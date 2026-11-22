@@ -28,7 +28,7 @@ from homeassistant.helpers.http import KEY_HASS, HomeAssistantView
 
 from .api import Camera, EzvizCloudError
 from .const import DOMAIN
-from .snapshot import PackSplitter, async_ps_to_jpeg, decrypt_packs
+from .snapshot import PackSplitter, async_ps_to_jpeg, decrypt_packs, keep_video
 
 if TYPE_CHECKING:
     from . import EzvizCloudConfigEntry
@@ -54,6 +54,8 @@ _STALL_MARGIN = 30
 # A photo reads this much from the keyframe on: the keyframe itself is enough.
 _PHOTO_SECONDS = 1
 _PHOTO_BYTES = 700_000
+# While a stream is open, the debug log says this often what it has carried.
+_REPORT_EVERY = 10
 
 type _Item = tuple[bytes, bool] | Exception | None
 
@@ -82,6 +84,9 @@ class LiveStream:
         # Called when an open ends without video (the live camera stops HA's stream worker).
         self.on_no_video: Callable[[], None] | None = None
         self.codec = "hevc"
+        # Which video stream of a stream that carries several is handed on: 1 is the
+        # first (0xE0), 2 the second. 0 hands on everything, as the camera sent it.
+        self.track = 0
         # Guards the HTTP view, which go2rtc reads without Home Assistant credentials.
         self.token = token or secrets.token_urlsafe(24)
 
@@ -157,16 +162,19 @@ class LiveStream:
         end: _Item = None
         packs: PackSplitter | None = None
         received = handed = 0
+        loop = asyncio.get_running_loop()
+        report_at = loop.time() + _REPORT_EVERY
         try:
             code = self._code()
             # The stream opens with a group of pictures that doesn't decode; with a
             # code, decrypting it garbles it further. Readers start at the next one.
             packs = PackSplitter(skip_first_group=bool(code))
             _LOGGER.debug(
-                "Live stream of %s: opening channel %s, %s a code",
+                "Live stream of %s: opening channel %s, %s a code, video track %s",
                 self.camera.serial,
                 self.camera.channel,
                 "with" if code else "without",
+                self.track or "as sent",
             )
             async with contextlib.aclosing(self._account.async_stream(self.camera, code)) as source:
                 async for data in source:
@@ -178,8 +186,24 @@ class LiveStream:
                             data[:16].hex(),
                         )
                     received += len(data)
-                    if not (batch := packs.feed(data)):
+                    batch = packs.feed(data)
+                    if loop.time() >= report_at:
+                        report_at = loop.time() + _REPORT_EVERY
+                        _LOGGER.debug(
+                            "Live stream of %s: channel %s so far %d bytes, %d groups, "
+                            "codec %s, %s",
+                            self.camera.serial,
+                            self.camera.channel,
+                            received,
+                            packs.groups,
+                            packs.codec,
+                            packs.summary(),
+                        )
+                    if not batch:
                         continue
+                    if self.track:
+                        wanted = 0xDF + self.track
+                        batch = [(keep_video(pack, wanted), key) for pack, key in batch]
                     handed += len(batch)
                     self.codec = packs.codec
                     clear = await self._hass.async_add_executor_job(
@@ -198,7 +222,7 @@ class LiveStream:
             if packs is not None:
                 _LOGGER.debug(
                     "Live stream of %s: channel %s closed after %d bytes, %d pictures in "
-                    "%d groups, codec %s, stream ids %s",
+                    "%d groups, codec %s, stream ids %s, %s",
                     self.camera.serial,
                     self.camera.channel,
                     received,
@@ -206,6 +230,7 @@ class LiveStream:
                     packs.groups,
                     packs.codec,
                     sorted(f"{i:02x}" for i in packs.stream_ids),
+                    packs.summary(),
                 )
             self._task = None
             if not self._video and not closed:
@@ -291,11 +316,23 @@ class LiveStreamView(HomeAssistantView):
                 *("-f", "mpegts", "pipe:1"),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.PIPE,
             )
             assert proc.stdin is not None
             assert proc.stdout is not None
-            stdin = proc.stdin
+            assert proc.stderr is not None
+            stdin, stderr = proc.stdin, proc.stderr
+
+            async def _complaints() -> None:
+                # What ffmpeg could not read is the only clue when a stream shows nothing.
+                while line := await stderr.readline():
+                    _LOGGER.debug(
+                        "Live stream of %s: ffmpeg: %s",
+                        serial,
+                        line.decode(errors="replace").strip(),
+                    )
+
+            complaints = asyncio.create_task(_complaints())
 
             async def _feed() -> None:
                 try:
@@ -325,6 +362,7 @@ class LiveStreamView(HomeAssistantView):
                 if proc.returncode is None:
                     proc.kill()
                 await proc.wait()
+                await complaints
         return response
 
 

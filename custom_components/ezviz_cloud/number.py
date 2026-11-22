@@ -17,6 +17,7 @@ from .const import (
     CLIP_MAX_SECONDS,
     CLIP_MIN_SECONDS,
     DEFAULT_CLIP_SECONDS,
+    TRACK_MAX,
 )
 from .entity import EzvizCloudEntity
 
@@ -29,12 +30,12 @@ async def async_setup_entry(
     entry: EzvizCloudConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """One clip length and one channel per camera."""
+    """One clip length, one channel and one video track per camera."""
     data = entry.runtime_data
     async_add_entities(
         cls(data, camera)
         for camera in data.cameras
-        for cls in (EzvizCloudClipLength, EzvizCloudChannel)
+        for cls in (EzvizCloudClipLength, EzvizCloudChannel, EzvizCloudVideoTrack)
     )
 
 
@@ -81,9 +82,10 @@ class EzvizCloudChannel(EzvizCloudEntity, RestoreNumber):
     _attr_native_min_value = CHANNEL_MIN
     _attr_native_max_value = CHANNEL_MAX
     _attr_native_step = 1
+    _key = "channel"
 
     def __init__(self, data: EzvizCloudData, camera: Camera) -> None:
-        super().__init__(data, camera, "channel")
+        super().__init__(data, camera, self._key)
 
     @property
     def native_value(self) -> int:
@@ -98,11 +100,29 @@ class EzvizCloudChannel(EzvizCloudEntity, RestoreNumber):
         last = await self.async_get_last_number_data()
         if last is not None and last.native_value is not None:
             value = int(last.native_value)
-            if CHANNEL_MIN <= value <= CHANNEL_MAX:
+            if self._attr_native_min_value <= value <= self._attr_native_max_value:
                 self._set(value)
 
     async def async_set_native_value(self, value: float) -> None:
         self._set(int(value))
-        # An open stream is still the old channel: the next viewer opens the new one.
+        # An open stream still has the old value: the next viewer opens the new one.
         await self._data.streams[self._serial].async_close()
         self.async_write_ha_state()
+
+
+class EzvizCloudVideoTrack(EzvizCloudChannel):
+    """Which video track of a stream that carries several is shown (0: as sent).
+
+    Some cameras with two lenses send both in one stream.
+    """
+
+    _attr_native_min_value = 0
+    _attr_native_max_value = TRACK_MAX
+    _key = "video_track"
+
+    @property
+    def native_value(self) -> int:
+        return self._data.streams[self._serial].track
+
+    def _set(self, channel: int) -> None:
+        self._data.streams[self._serial].track = channel
