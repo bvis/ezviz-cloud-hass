@@ -24,6 +24,7 @@ every pull request — keep it green.
 - [ ] Coverage stays at or above the 90% threshold
 - [ ] User-facing strings updated in `strings.json` and every file under `translations/` (a test pins key parity)
 - [ ] `README.md` / `CHANGELOG.md` updated when the change is user-visible
+- [ ] Commits are signed (see [CONTRIBUTING](https://github.com/bvis/ezviz-cloud-hass/blob/main/CONTRIBUTING.md#signed-commits))
 
 ## Notes for the reviewer
 
