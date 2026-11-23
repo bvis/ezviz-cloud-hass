@@ -133,7 +133,7 @@ async def test_linger_stop_without_a_keyframe_cools_down(
     # must not wake the camera again.
     monkeypatch.setattr(live, "LINGER", 0.01)
     stream = _stream()
-    stream.on_no_video = MagicMock()
+    stream.no_video_listeners.add(listener := MagicMock())
     frames = stream.frames()
     pending = asyncio.ensure_future(anext(frames))
     await asyncio.sleep(0)
@@ -146,7 +146,7 @@ async def test_linger_stop_without_a_keyframe_cools_down(
     await asyncio.sleep(0.05)
     assert not stream.active
     assert stream._cooldown_until > 0
-    stream.on_no_video.assert_called_once_with()
+    listener.assert_called_once_with()
     with pytest.raises(EzvizCloudCooldownError):
         await anext(stream.frames())
     assert upstream.opens == 1
@@ -157,7 +157,7 @@ async def test_linger_stop_after_video_does_not_cool_down(
 ) -> None:
     monkeypatch.setattr(live, "LINGER", 0.01)
     stream = _stream()
-    stream.on_no_video = MagicMock()
+    stream.no_video_listeners.add(listener := MagicMock())
     async with contextlib.aclosing(stream.frames()) as frames:
         pending = asyncio.ensure_future(anext(frames))
         await asyncio.sleep(0)
@@ -166,19 +166,19 @@ async def test_linger_stop_after_video_does_not_cool_down(
     await asyncio.sleep(0.05)
     assert not stream.active
     assert stream._cooldown_until == 0
-    stream.on_no_video.assert_not_called()
+    listener.assert_not_called()
 
 
 async def test_failed_open_reaches_readers_and_starts_a_cooldown(upstream: _Upstream) -> None:
     stream = _stream()
     upstream.queue.put_nowait(EzvizCloudError("5405"))
-    stream.on_no_video = MagicMock()
+    stream.no_video_listeners.add(listener := MagicMock())
     with pytest.raises(EzvizCloudError, match="5405"):
         await anext(stream.frames())
     with pytest.raises(EzvizCloudCooldownError, match="a moment ago"):
         await anext(stream.frames())
     assert upstream.opens == 1
-    stream.on_no_video.assert_called_once_with()
+    listener.assert_called_once_with()
 
 
 async def test_stream_without_video_also_cools_down(upstream: _Upstream) -> None:
@@ -235,6 +235,19 @@ async def test_video_track_hands_on_one_of_two_video_streams(
         upstream.queue.put_nowait(both + PACK)
         assert await anext(frames) == PACK + _psm() + second
     await stream.async_close()
+    # Two readers of one stream, each with its own lens: the camera opens once.
+    stream.track = 1
+    async with (
+        contextlib.aclosing(stream.frames()) as lens1,
+        contextlib.aclosing(stream.frames(2)) as lens2,
+    ):
+        # Both readers wait before anything arrives.
+        waiting = [asyncio.ensure_future(anext(lens1)), asyncio.ensure_future(anext(lens2))]
+        await asyncio.sleep(0)
+        upstream.queue.put_nowait(both + PACK)
+        assert await asyncio.gather(*waiting) == [PACK + _psm() + first, PACK + _psm() + second]
+    await stream.async_close()
+    assert upstream.opens == 3
     assert "video track as sent" in caplog.text
     assert "video track 2" in caplog.text
     assert "so far" in caplog.text
@@ -456,7 +469,7 @@ async def _serve(  # type: ignore[no-untyped-def]
 async def test_view_remuxes_the_stream_to_mpegts(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG, logger=live.__name__)
 
-    async def frames() -> AsyncIterator[bytes]:
+    async def frames(_track: int | None = None) -> AsyncIterator[bytes]:
         yield b"key"
         yield b"next"
 
@@ -472,6 +485,28 @@ async def test_view_remuxes_the_stream_to_mpegts(caplog: pytest.LogCaptureFixtur
     assert "Live stream of BK1: ffmpeg: pipe:0: Invalid data" in caplog.text
 
 
+@pytest.mark.parametrize(("query", "track"), [("2", 2), ("1", 1), ("", None), ("9", None)])
+async def test_view_hands_the_reader_the_track_it_asks_for(query: str, track: int | None) -> None:
+    asked: list[int | None] = []
+
+    async def frames(wanted: int | None = None) -> AsyncIterator[bytes]:
+        asked.append(wanted)
+        yield b"key"
+
+    stream = MagicMock(token="tok", frames=frames)
+    request = _request(MagicMock(), "tok")
+    request.query = {"token": "tok", "track": query}
+    response = MagicMock(prepare=AsyncMock(), write=AsyncMock())
+    with (
+        patch.object(live, "find_stream", return_value=stream),
+        patch.object(live, "ffmpeg_binary", return_value="/ffmpeg"),
+        patch.object(live.web, "StreamResponse", return_value=response),
+        patch("asyncio.create_subprocess_exec", AsyncMock(return_value=_Proc())),
+    ):
+        await LiveStreamView().get(request, "BK1")
+    assert asked == [track]
+
+
 @pytest.mark.parametrize(("found", "token"), [(False, "tok"), (True, "wrong"), (True, "t\u00f6k")])
 async def test_view_hides_unknown_cameras_and_bad_tokens(found: bool, token: str) -> None:
     stream = MagicMock(token="tok") if found else None
@@ -482,7 +517,7 @@ async def test_view_hides_unknown_cameras_and_bad_tokens(found: bool, token: str
 async def test_view_takes_the_token_as_auth_too() -> None:
     # The live camera hands Home Assistant an address with `auth`, which its stream
     # log lines redact; addresses given to other apps carry `token`.
-    async def frames() -> AsyncIterator[bytes]:
+    async def frames(_track: int | None = None) -> AsyncIterator[bytes]:
         yield b"key"
 
     stream = MagicMock(token="tok", frames=frames)
@@ -493,7 +528,7 @@ async def test_view_takes_the_token_as_auth_too() -> None:
 
 
 async def test_view_answers_503_when_the_camera_does_not_stream() -> None:
-    async def frames() -> AsyncIterator[bytes]:
+    async def frames(_track: int | None = None) -> AsyncIterator[bytes]:
         raise EzvizCloudError("asleep")
         yield b""  # pragma: no cover
 
@@ -502,14 +537,14 @@ async def test_view_answers_503_when_the_camera_does_not_stream() -> None:
 
 
 async def test_view_stops_when_the_stream_fails_midway_or_the_reader_leaves() -> None:
-    async def frames() -> AsyncIterator[bytes]:
+    async def frames(_track: int | None = None) -> AsyncIterator[bytes]:
         yield b"key"
         raise EzvizCloudError("dropped")
 
     _, written, _ = await _serve(MagicMock(token="tok", frames=frames), "tok")
     assert written == [b"ts:key"]
 
-    async def endless() -> AsyncIterator[bytes]:
+    async def endless(_track: int | None = None) -> AsyncIterator[bytes]:
         while True:
             yield b"f"
             await asyncio.sleep(0)

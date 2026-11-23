@@ -31,7 +31,11 @@ async def async_setup_entry(
     async_add_entities(
         entity
         for camera in data.cameras
-        for entity in (EzvizCloudLastPhoto(data, camera), EzvizCloudLive(data, camera))
+        for entity in (
+            EzvizCloudLastPhoto(data, camera),
+            EzvizCloudLive(data, camera),
+            EzvizCloudLiveOtherLens(data, camera),
+        )
     )
 
 
@@ -61,10 +65,10 @@ class EzvizCloudLive(EzvizCloudLastPhoto):
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        self._data.streams[self._serial].on_no_video = self._stop_stream_worker
+        self._data.streams[self._serial].no_video_listeners.add(self._stop_stream_worker)
 
     async def async_will_remove_from_hass(self) -> None:
-        self._data.streams[self._serial].on_no_video = None
+        self._data.streams[self._serial].no_video_listeners.discard(self._stop_stream_worker)
         await super().async_will_remove_from_hass()
 
     @callback
@@ -84,4 +88,23 @@ class EzvizCloudLive(EzvizCloudLastPhoto):
         token = self._data.streams[self._serial].token
         # `auth`, not `token`: Home Assistant's stream names its source when it fails
         # to open (routine while a battery camera sleeps) and only hides that parameter.
-        return f"{scheme}://127.0.0.1:{port}/api/{DOMAIN}/live/{self._serial}?auth={token}"
+        return f"{scheme}://127.0.0.1:{port}/api/{DOMAIN}/live/{self._serial}?auth={token}{self._query()}"
+
+    def _query(self) -> str:
+        return ""
+
+
+class EzvizCloudLiveOtherLens(EzvizCloudLive):
+    """The other lens of a camera that sends two in one stream, next to the live camera.
+
+    It reads the same shared stream, so watching both lenses wakes the camera
+    once and costs no extra request. Disabled by default: a camera with one lens
+    has nothing to show here.
+    """
+
+    _key = "live_other_lens"
+    _attr_entity_registry_enabled_default = False
+
+    def _query(self) -> str:
+        # The track the live camera is not showing; "as sent" shows the first.
+        return "&track=1" if self._data.streams[self._serial].track == 2 else "&track=2"

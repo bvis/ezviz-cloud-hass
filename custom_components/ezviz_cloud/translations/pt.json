@@ -158,6 +158,9 @@
       },
       "live": {
         "name": "Em direto"
+      },
+      "live_other_lens": {
+        "name": "Em direto, outra lente"
       }
     },
     "sensor": {

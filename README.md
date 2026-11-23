@@ -139,6 +139,8 @@ The live camera, *Capture photo* and *Record clip* share one stream per camera: 
 
 **Requests to EZVIZ:** one live address request plus the live stream while someone watches (and 20 seconds more). Nothing while nobody watches.
 
+**Cameras with two lenses in one stream** (the HB90, for example, sends its wide-angle and its pan/tilt lens together): set *Video track* to 1 and enable the second camera entity, **Live, other lens** (`camera.<name>_live_other_lens`, disabled by default, on the device page). The *Live* camera then shows one lens and the other one shows the second, so both can be on a dashboard at once. Both read the same stream: watching them together opens the camera once and costs no extra request.
+
 #### Other apps (Frigate, go2rtc)
 
 *Configure → Stream address for other apps* shows an address per camera that an app can read without logging in to Home Assistant: the same MPEG-TS stream the live camera plays. It works from wherever your Home Assistant can be reached, the internet included if you expose it. The addresses survive restarts; *Make new addresses* there voids them if one leaks. Anyone with an address can watch that camera.
@@ -186,6 +188,7 @@ Each camera is a device with these entities:
 | *Channel* | For devices with more than one lens: which one the live camera, photos and clips show (1 by default). Disabled until you enable it on the device page. |
 | *Video track* | For cameras that send two lenses in one stream: 1 or 2 shows only that one; 0 leaves the stream as the camera sends it (the default). Disabled until you enable it on the device page. |
 | *Last photo* | Camera entity that shows the newest photo. |
+| *Live, other lens* | Camera entity with the lens the *Live* camera isn't showing, for cameras that send two in one stream. Disabled until you enable it on the device page. |
 | *Last recording* | When the newest photo or video was saved. |
 
 What the *Mode* changes:

@@ -158,6 +158,9 @@
       },
       "live": {
         "name": "Live"
+      },
+      "live_other_lens": {
+        "name": "Live, other lens"
       }
     },
     "sensor": {
