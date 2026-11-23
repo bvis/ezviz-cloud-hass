@@ -226,19 +226,16 @@ async def test_live_camera_stops_the_stream_worker_when_the_camera_gave_no_video
     assert data.streams["BK1"].no_video_listeners == set()
 
 
-@pytest.mark.parametrize(("track", "other"), [(0, 2), (1, 2), (2, 1)])
-async def test_other_lens_camera_asks_the_view_for_the_track_the_live_one_skips(
-    tmp_path: Path, track: int, other: int
-) -> None:
+async def test_other_lens_camera_asks_the_view_for_the_other_lens(tmp_path: Path) -> None:
     data = _data()
-    data.streams["BK1"] = MagicMock(token="tok", track=track)
+    data.streams["BK1"] = MagicMock(token="tok")
     entity = EzvizCloudLiveOtherLens(data, CAM)
     entity.hass = _hass(tmp_path)
     entity.hass.config.api = None
     assert entity.unique_id == "BK1_live_other_lens"
     assert entity.entity_registry_enabled_default is False
     source = await entity.stream_source()
-    assert source == f"http://127.0.0.1:8123/api/ezviz_cloud/live/BK1?auth=tok&track={other}"
+    assert source == "http://127.0.0.1:8123/api/ezviz_cloud/live/BK1?auth=tok&lens=other"
 
 
 async def test_channel_is_off_by_default_restores_and_reopens_the_stream() -> None:

@@ -239,13 +239,19 @@ async def test_video_track_hands_on_one_of_two_video_streams(
     stream.track = 1
     async with (
         contextlib.aclosing(stream.frames()) as lens1,
-        contextlib.aclosing(stream.frames(2)) as lens2,
+        contextlib.aclosing(stream.frames(live.OTHER_TRACK)) as lens2,
     ):
         # Both readers wait before anything arrives.
         waiting = [asyncio.ensure_future(anext(lens1)), asyncio.ensure_future(anext(lens2))]
         await asyncio.sleep(0)
         upstream.queue.put_nowait(both + PACK)
         assert await asyncio.gather(*waiting) == [PACK + _psm() + first, PACK + _psm() + second]
+        # The setting changes: each reader swaps lens without reconnecting.
+        stream.track = 2
+        upstream.queue.put_nowait(both + PACK)
+        # The pack left open by the first batch comes first, then the new one.
+        assert await _take(lens1, 2) == [PACK, PACK + _psm() + second]
+        assert await _take(lens2, 2) == [PACK, PACK + _psm() + first]
     await stream.async_close()
     assert upstream.opens == 3
     assert "video track as sent" in caplog.text
@@ -485,7 +491,9 @@ async def test_view_remuxes_the_stream_to_mpegts(caplog: pytest.LogCaptureFixtur
     assert "Live stream of BK1: ffmpeg: pipe:0: Invalid data" in caplog.text
 
 
-@pytest.mark.parametrize(("query", "track"), [("2", 2), ("1", 1), ("", None), ("9", None)])
+@pytest.mark.parametrize(
+    ("query", "track"), [("other", live.OTHER_TRACK), ("", None), ("first", None)]
+)
 async def test_view_hands_the_reader_the_track_it_asks_for(query: str, track: int | None) -> None:
     asked: list[int | None] = []
 
@@ -495,7 +503,7 @@ async def test_view_hands_the_reader_the_track_it_asks_for(query: str, track: in
 
     stream = MagicMock(token="tok", frames=frames)
     request = _request(MagicMock(), "tok")
-    request.query = {"token": "tok", "track": query}
+    request.query = {"token": "tok", "lens": query}
     response = MagicMock(prepare=AsyncMock(), write=AsyncMock())
     with (
         patch.object(live, "find_stream", return_value=stream),

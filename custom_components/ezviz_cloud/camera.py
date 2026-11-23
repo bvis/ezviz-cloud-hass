@@ -106,5 +106,6 @@ class EzvizCloudLiveOtherLens(EzvizCloudLive):
     _attr_entity_registry_enabled_default = False
 
     def _query(self) -> str:
-        # The track the live camera is not showing; "as sent" shows the first.
-        return "&track=1" if self._data.streams[self._serial].track == 2 else "&track=2"
+        # The view picks the track when it is read, so this address never goes stale
+        # when *Video track* changes (Home Assistant keeps a stream's first address).
+        return "&lens=other"

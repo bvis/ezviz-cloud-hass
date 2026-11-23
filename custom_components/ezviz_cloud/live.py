@@ -60,6 +60,10 @@ _REPORT_EVERY = 10
 type _Item = tuple[bytes, bool] | Exception | None
 
 
+# A reader that wants the video track the setting does not pick (the other lens).
+OTHER_TRACK = -1
+
+
 class LiveStream:
     """The shared live stream of one camera."""
 
@@ -75,7 +79,8 @@ class LiveStream:
         self._account = account
         self.camera = camera
         self._code = code
-        # Each reader with the video track it wants: None follows ``track``.
+        # Each reader with the video track it wants: None follows ``track``,
+        # OTHER_TRACK takes the other one.
         self._readers: dict[asyncio.Queue[_Item], int | None] = {}
         self._task: asyncio.Task[None] | None = None
         self._linger: asyncio.TimerHandle | None = None
@@ -99,8 +104,8 @@ class LiveStream:
     async def frames(self, track: int | None = None) -> AsyncGenerator[bytes]:
         """Decrypted MPEG-PS from the next keyframe on, for as long as it is read.
 
-        ``track`` picks a video track for this reader only (the second lens camera);
-        without it the reader follows ``track``. Use it with ``contextlib.aclosing``
+        With ``OTHER_TRACK`` the reader gets the video track the ``track`` setting
+        doesn't show (the other lens camera); without it, the one it shows. Use it with ``contextlib.aclosing``
         so leaving early releases the stream.
         """
         loop = asyncio.get_running_loop()
@@ -248,6 +253,9 @@ class LiveStream:
 
     def _track_of(self, queue: asyncio.Queue[_Item]) -> int:
         wanted = self._readers.get(queue)
+        if wanted == OTHER_TRACK:
+            # Read when each batch arrives, so a changed setting needs no new address.
+            return 1 if self.track == 2 else 2
         return self.track if wanted is None else wanted
 
     def _broadcast(self, item: _Item, track: int) -> None:
@@ -315,7 +323,7 @@ class LiveStreamView(HomeAssistantView):
         given = request.query.get("auth") or request.query.get("token", "")
         if stream is None or not hmac.compare_digest(given.encode(), stream.token.encode()):
             raise web.HTTPNotFound
-        track = {"1": 1, "2": 2}.get(request.query.get("track", ""))
+        track = OTHER_TRACK if request.query.get("lens") == "other" else None
         async with contextlib.aclosing(stream.frames(track)) as frames:
             try:
                 first = await anext(frames)
