@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.15.0] - unreleased
 
+**No rush:** a new feature for cameras with two lenses. Install it whenever it suits you.
+
 ### Added
 - **Both lenses at once.** Cameras that send two lenses in one stream, such as the HB90, get a second live camera, *Live, other lens*, disabled by default. With *Video track* set to 1, the *Live* camera shows the first lens and the new one the second, so both fit on a dashboard together. They share the camera's single stream: watching both wakes the camera once. Requested by @StefanBiacsics (#37). **Requests to EZVIZ:** none extra.
 
