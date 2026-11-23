@@ -158,6 +158,9 @@
       },
       "live": {
         "name": "Ao vivo"
+      },
+      "live_other_lens": {
+        "name": "Ao vivo, outra lente"
       }
     },
     "sensor": {

@@ -13,7 +13,11 @@ from homeassistant.util import dt as dt_util
 
 from custom_components.ezviz_cloud import EzvizCloudData
 from custom_components.ezviz_cloud.api import Camera
-from custom_components.ezviz_cloud.camera import EzvizCloudLastPhoto, EzvizCloudLive
+from custom_components.ezviz_cloud.camera import (
+    EzvizCloudLastPhoto,
+    EzvizCloudLive,
+    EzvizCloudLiveOtherLens,
+)
 from custom_components.ezviz_cloud.camera import async_setup_entry as setup_camera
 from custom_components.ezviz_cloud.const import DATA_RECORDER
 from custom_components.ezviz_cloud.number import (
@@ -53,7 +57,7 @@ async def test_platforms_add_one_entity_per_camera() -> None:
     for setup, cls in (
         (setup_select, EzvizCloudMode),
         (setup_number, (EzvizCloudClipLength, EzvizCloudChannel, EzvizCloudVideoTrack)),
-        (setup_camera, (EzvizCloudLastPhoto, EzvizCloudLive)),
+        (setup_camera, (EzvizCloudLastPhoto, EzvizCloudLive, EzvizCloudLiveOtherLens)),
         (setup_sensor, EzvizCloudLastRecording),
     ):
         add = MagicMock()
@@ -200,7 +204,7 @@ async def test_live_camera_stops_the_stream_worker_when_the_camera_gave_no_video
     tmp_path: Path,
 ) -> None:
     data = _data()
-    data.streams["BK1"] = MagicMock(token="tok", on_no_video=None)
+    data.streams["BK1"] = MagicMock(token="tok", no_video_listeners=set())
     entity = EzvizCloudLive(data, CAM)
     entity.hass = _hass(tmp_path)
     with (
@@ -208,7 +212,7 @@ async def test_live_camera_stops_the_stream_worker_when_the_camera_gave_no_video
         patch.object(CameraEntity, "async_will_remove_from_hass", AsyncMock()),
     ):
         await entity.async_added_to_hass()
-        callback = data.streams["BK1"].on_no_video
+        (callback,) = data.streams["BK1"].no_video_listeners
         callback()  # no HA stream yet: nothing to stop
         entity.hass.async_create_task.assert_not_called()
 
@@ -219,7 +223,19 @@ async def test_live_camera_stops_the_stream_worker_when_the_camera_gave_no_video
         entity.stream.stop.assert_called_once_with()
 
         await entity.async_will_remove_from_hass()
-    assert data.streams["BK1"].on_no_video is None
+    assert data.streams["BK1"].no_video_listeners == set()
+
+
+async def test_other_lens_camera_asks_the_view_for_the_other_lens(tmp_path: Path) -> None:
+    data = _data()
+    data.streams["BK1"] = MagicMock(token="tok")
+    entity = EzvizCloudLiveOtherLens(data, CAM)
+    entity.hass = _hass(tmp_path)
+    entity.hass.config.api = None
+    assert entity.unique_id == "BK1_live_other_lens"
+    assert entity.entity_registry_enabled_default is False
+    source = await entity.stream_source()
+    assert source == "http://127.0.0.1:8123/api/ezviz_cloud/live/BK1?auth=tok&lens=other"
 
 
 async def test_channel_is_off_by_default_restores_and_reopens_the_stream() -> None:

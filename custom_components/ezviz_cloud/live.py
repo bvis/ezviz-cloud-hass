@@ -60,6 +60,10 @@ _REPORT_EVERY = 10
 type _Item = tuple[bytes, bool] | Exception | None
 
 
+# A reader that wants the video track the setting does not pick (the other lens).
+OTHER_TRACK = -1
+
+
 class LiveStream:
     """The shared live stream of one camera."""
 
@@ -75,14 +79,16 @@ class LiveStream:
         self._account = account
         self.camera = camera
         self._code = code
-        self._readers: set[asyncio.Queue[_Item]] = set()
+        # Each reader with the video track it wants: None follows ``track``,
+        # OTHER_TRACK takes the other one.
+        self._readers: dict[asyncio.Queue[_Item], int | None] = {}
         self._task: asyncio.Task[None] | None = None
         self._linger: asyncio.TimerHandle | None = None
         self._cooldown_until = 0.0
         # Whether the current open has handed a keyframe to its readers.
         self._video = False
-        # Called when an open ends without video (the live camera stops HA's stream worker).
-        self.on_no_video: Callable[[], None] | None = None
+        # Called when an open ends without video (each live camera stops HA's stream worker).
+        self.no_video_listeners: set[Callable[[], None]] = set()
         self.codec = "hevc"
         # Which video stream of a stream that carries several is handed on: 1 is the
         # first (0xE0), 2 the second. 0 hands on everything, as the camera sent it.
@@ -95,16 +101,18 @@ class LiveStream:
         """Whether the stream is open (or opening)."""
         return self._task is not None
 
-    async def frames(self) -> AsyncGenerator[bytes]:
+    async def frames(self, track: int | None = None) -> AsyncGenerator[bytes]:
         """Decrypted MPEG-PS from the next keyframe on, for as long as it is read.
 
-        Use it with ``contextlib.aclosing`` so leaving early releases the stream.
+        With ``OTHER_TRACK`` the reader gets the video track the ``track`` setting
+        doesn't show (the other lens camera); without it, the one it shows. Use it with ``contextlib.aclosing``
+        so leaving early releases the stream.
         """
         loop = asyncio.get_running_loop()
         if loop.time() < self._cooldown_until:
             raise EzvizCloudCooldownError("The camera did not stream a moment ago; try again later")
         queue: asyncio.Queue[_Item] = asyncio.Queue()
-        self._readers.add(queue)
+        self._readers[queue] = track
         if self._linger is not None:
             self._linger.cancel()
             self._linger = None
@@ -125,7 +133,7 @@ class LiveStream:
                 if started:
                     yield data
         finally:
-            self._readers.discard(queue)
+            self._readers.pop(queue, None)
             if not self._readers and self._task is not None and self._linger is None:
                 self._linger = loop.call_later(LINGER, self._stop)
 
@@ -139,8 +147,8 @@ class LiveStream:
 
     def _no_video(self) -> None:
         self._cooldown_until = asyncio.get_running_loop().time() + COOLDOWN
-        if self.on_no_video is not None:
-            self.on_no_video()
+        for listener in list(self.no_video_listeners):
+            listener()
 
     async def async_close(self) -> None:
         """Close the stream now (the entry is unloading)."""
@@ -201,17 +209,21 @@ class LiveStream:
                         )
                     if not batch:
                         continue
-                    if self.track:
-                        wanted = 0xDF + self.track
-                        batch = [(keep_video(pack, wanted), key) for pack, key in batch]
                     handed += len(batch)
                     self.codec = packs.codec
-                    clear = await self._hass.async_add_executor_job(
-                        decrypt_packs, [p for p, _ in batch], code, packs.codec
-                    )
-                    for pack, (_, keyframe) in zip(clear, batch, strict=True):
-                        self._broadcast((pack, keyframe))
-                        self._video = self._video or keyframe
+                    # Filtered before decrypting, once per track some reader wants.
+                    for track in {self._track_of(queue) for queue in self._readers}:
+                        kept = (
+                            [(keep_video(pack, 0xDF + track), key) for pack, key in batch]
+                            if track
+                            else batch
+                        )
+                        clear = await self._hass.async_add_executor_job(
+                            decrypt_packs, [p for p, _ in kept], code, packs.codec
+                        )
+                        for pack, (_, keyframe) in zip(clear, kept, strict=True):
+                            self._broadcast((pack, keyframe), track)
+                    self._video = self._video or any(key for _, key in batch)
         except EzvizCloudError as err:
             _LOGGER.debug("Live stream of %s failed: %s", self.camera.serial, err)
             end = err
@@ -239,10 +251,19 @@ class LiveStream:
             for queue in self._readers:
                 queue.put_nowait(end)
 
-    def _broadcast(self, item: _Item) -> None:
+    def _track_of(self, queue: asyncio.Queue[_Item]) -> int:
+        wanted = self._readers.get(queue)
+        if wanted == OTHER_TRACK:
+            # Read when each batch arrives, so a changed setting needs no new address.
+            return 1 if self.track == 2 else 2
+        return self.track if wanted is None else wanted
+
+    def _broadcast(self, item: _Item, track: int) -> None:
         for queue in list(self._readers):
+            if self._track_of(queue) != track:
+                continue
             if queue.qsize() >= _MAX_BACKLOG:
-                self._readers.discard(queue)
+                self._readers.pop(queue, None)
                 queue.put_nowait(EzvizCloudError("Reader fell behind the live stream"))
             else:
                 queue.put_nowait(item)
@@ -302,7 +323,8 @@ class LiveStreamView(HomeAssistantView):
         given = request.query.get("auth") or request.query.get("token", "")
         if stream is None or not hmac.compare_digest(given.encode(), stream.token.encode()):
             raise web.HTTPNotFound
-        async with contextlib.aclosing(stream.frames()) as frames:
+        track = OTHER_TRACK if request.query.get("lens") == "other" else None
+        async with contextlib.aclosing(stream.frames(track)) as frames:
             try:
                 first = await anext(frames)
             except (EzvizCloudError, StopAsyncIteration) as err:

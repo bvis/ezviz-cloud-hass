@@ -158,6 +158,9 @@
       },
       "live": {
         "name": "Dal vivo"
+      },
+      "live_other_lens": {
+        "name": "In diretta, altro obiettivo"
       }
     },
     "sensor": {

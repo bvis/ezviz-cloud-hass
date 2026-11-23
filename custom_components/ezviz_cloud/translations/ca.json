@@ -158,6 +158,9 @@
       },
       "live": {
         "name": "En directe"
+      },
+      "live_other_lens": {
+        "name": "En directe, l'altra lent"
       }
     },
     "sensor": {
