@@ -487,7 +487,7 @@ def test_rtp_reassembles_fragments_and_aggregates() -> None:
     out += rtp.feed(_rtp(fu_start, seq=2, marker=False))
     out += rtp.feed(_rtp(b"\x62\x01\x13" + b"", seq=3, marker=False, pad=2))
     out += rtp.feed(_rtp(fu_end, seq=4))
-    assert out.count(b"\x00\x00\x01\xe0") == 2  # cut into two PES packets
+    assert out.count(b"\x00\x00\x01\xe0") == 4  # VPS, PPS, and the IDR cut in two
     assert _rtp_nals(out) == [VPS, b"\x42\x01\x01", big]
 
 
@@ -511,12 +511,39 @@ def test_rtp_reads_h264_without_a_descriptor() -> None:
     assert _rtp_nals(out) == [sps, idr]
 
 
+def test_rtp_waits_for_a_packet_that_names_the_codec() -> None:
+    rtp = RtpToPs()
+    sps = b"\x67\x4d\x00\x1f" + bytes(252)  # 256 bytes: the STAP-A size reads 01 00
+    assert rtp.feed(_rtp(b"\x7c\x01abc")) == b""  # a middle fragment, either codec
+    assert rtp.feed(_rtp(b"\x61\x01")) == b""  # an H.264 slice with an H.265-like header
+    assert rtp.feed(_rtp(b"\x80\x01\x00")) == b""  # forbidden bit set
+    assert rtp.codec is None
+    out = rtp.feed(_rtp(b"\x18" + len(sps).to_bytes(2, "big") + sps, seq=3))
+    assert rtp.codec == "h264"
+    assert _rtp_nals(out) == [sps]
+    fu_a = RtpToPs()
+    fu_a.feed(_rtp(b"\x7c\x85\x88"))  # first fragment of an IDR
+    assert fu_a.codec == "h264"
+
+
+def test_rtp_starts_every_nal_unit_in_its_own_pes_packet() -> None:
+    rtp = RtpToPs()
+    first = b"\x26\x01" + bytes(59_992)  # its end leaves the next start code across 60 000
+    nals = [first, b"\x02\x01\xd0"]
+    ap = b"\x60\x01" + b"".join(len(n).to_bytes(2, "big") + n for n in nals)
+    out = rtp.feed(_rtp(ap))
+    payloads = [p[5 + p[4] :] for p in out.split(b"\x00\x00\x01\xe0")[1:]]
+    assert [p[:4] for p in payloads] == [b"\x00\x00\x00\x01"] * 2
+    assert _rtp_nals(out) == nals
+
+
 def test_rtp_ignores_what_it_cannot_read() -> None:
     rtp = RtpToPs()
     assert rtp.feed(b"\x00" * 20) == b""  # not RTP v2
     assert rtp.feed(_rtp(b"", pt=96)) == b""  # empty payload
     assert rtp.feed(_rtp(b"", ext=bytes((0x45, 2, 0x99, 97)))) == b""  # unknown codec
     assert rtp.video_pt is None
+    rtp.feed(_rtp(IDR))
     assert rtp.feed(_rtp(b"\x62\x01")) == b""  # fragment too short to have a header
     assert rtp.feed(_rtp(b"\x62\x01\x13x", seq=2)) == b""  # continuation without a start
 

@@ -261,8 +261,9 @@ class RtpToPs:
         if pt != (self.video_pt if self.video_pt is not None else _RTP_VIDEO_PT) or not payload:
             return b""
         if self.codec is None:
-            # H.265 NAL headers end in 0x01 (layer 0, temporal id 1); H.264 ones don't.
-            self.codec = "hevc" if len(payload) > 1 and payload[1] == 0x01 else "h264"
+            self.codec = _guess_codec(payload)
+            if self.codec is None:  # nothing to decode before the first keyframe anyway
+                return b""
         if self._seq is not None and seq != (self._seq + 1) & 0xFFFF and self._fu is not None:
             self._fu = None
             self.dropped += 1
@@ -326,7 +327,6 @@ class RtpToPs:
             self._t0 = self._ts
         # ponytail: 32-bit RTP clock wraps after ~13 h at 90 kHz; live streams are minutes.
         pts = _PTS_START + ((self._ts - self._t0) & 0xFFFFFFFF)
-        es = b"".join(b"\x00\x00\x00\x01" + n for n in nals)
         types = {(n[0] >> 1) & 0x3F if self.codec == "hevc" else n[0] & 0x1F for n in nals}
         key = bool(types & ({16, 17, 18, 19, 20, 21, 32} if self.codec == "hevc" else {5, 7}))
         out = bytearray(_pack_header(pts))
@@ -334,9 +334,39 @@ class RtpToPs:
             stream_type = 0x24 if self.codec == "hevc" else 0x1B
             body = b"\xe0\xff\x00\x00\x00\x04" + bytes((stream_type, 0xE0, 0, 0))
             out += b"\x00\x00\x01\xbc" + (len(body) + 4).to_bytes(2, "big") + body + bytes(4)
-        for i in range(0, len(es), _PES_CHUNK):
-            out += _pes_packet(es[i : i + _PES_CHUNK], pts if i == 0 else None)
+        # Each NAL unit opens its own PES packet: pyezvizapi finds the units to
+        # decrypt one PES payload at a time, so a start code cut in two is missed.
+        first = True
+        for n in nals:
+            unit = b"\x00\x00\x00\x01" + n
+            for i in range(0, len(unit), _PES_CHUNK):
+                out += _pes_packet(unit[i : i + _PES_CHUNK], pts if first else None)
+                first = False
         return bytes(out)
+
+
+def _guess_codec(p: bytes) -> str | None:
+    """The codec of an RTP payload that holds a parameter set or a keyframe NAL unit.
+
+    It looks inside aggregation packets and first fragments too. Other payloads
+    can read as either codec, so they give no answer.
+    """
+    if len(p) > 2 and p[1] == 0x01:  # H.265: layer 0, temporal id 1
+        t = (p[0] >> 1) & 0x3F
+        if t == 48 and len(p) > 4:
+            t = (p[4] >> 1) & 0x3F
+        elif t == 49 and p[2] & 0x80:
+            t = p[2] & 0x3F
+        if 16 <= t <= 21 or 32 <= t <= 34:
+            return "hevc"
+    if p[0] & 0x80:  # forbidden bit
+        return None
+    t = p[0] & 0x1F
+    if t == 24 and len(p) > 3:
+        t = p[3] & 0x1F
+    elif t == 28 and len(p) > 1 and p[1] & 0x80:
+        t = p[1] & 0x1F
+    return "h264" if t in (5, 7) else None
 
 
 def _pack_header(scr: int) -> bytes:
