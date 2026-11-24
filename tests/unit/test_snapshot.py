@@ -14,7 +14,9 @@ from custom_components.ezviz_cloud.api import EzvizCloudError
 from custom_components.ezviz_cloud.snapshot import (
     EzvizCloudDecodeError,
     PackSplitter,
+    RtpToPs,
     _decrypt,
+    _packets,
     async_iter_stream,
     async_ps_to_jpeg,
     async_ps_to_mp4,
@@ -400,3 +402,127 @@ def test_splitter_reads_h264_nal_types() -> None:
     splitter = PackSplitter(skip_first_group=False)
     _collect(splitter, PACK + _psm(0x1B) + _pes(b"\x00\x00\x00\x01\x65") + PACK)
     assert splitter.nals == {0xE0: {5}}
+
+
+# RTP as some cameras (the EP4) send it: fixed source id, video on PT 96.
+VPS, IDR = b"\x40\x01\x0c", b"\x26\x01\xaf\x00"  # H.265 NAL units: VPS (32), IDR (19)
+P_FRAME = b"\x02\x01\xd0"  # H.265 non-key slice (1)
+
+
+def _rtp(
+    payload: bytes,
+    *,
+    pt: int = 96,
+    seq: int = 1,
+    ts: int = 3000,
+    marker: bool = True,
+    ext: bytes | None = None,
+    pad: int = 0,
+) -> bytes:
+    b0 = 0x80 | (0x10 if ext is not None else 0) | (0x20 if pad else 0)
+    head = bytes((b0, (0x80 if marker else 0) | pt)) + seq.to_bytes(2, "big")
+    head += ts.to_bytes(4, "big") + b"\x55\x66\x77\x88"
+    if ext is not None:
+        head += b"\x00\x01" + (len(ext) // 4).to_bytes(2, "big") + ext
+    return head + payload + (bytes(pad - 1) + bytes((pad,)) if pad else b"")
+
+
+def _rtp_nals(ps: bytes) -> list[bytes]:
+    """The NAL units in the video PES packets of RtpToPs output."""
+    es = b""
+    for pack in ps.split(b"\x00\x00\x01\xba")[1:]:
+        for sid, start, end in _packets(b"\x00\x00\x01\xba" + pack):
+            if sid == 0xE0:
+                body = (b"\x00\x00\x01\xba" + pack)[start:end]
+                es += body[9 + body[8] :]
+    return [n for n in es.split(b"\x00\x00\x00\x01") if n]
+
+
+def test_rtp_starts_only_on_the_fixed_source_id() -> None:
+    assert RtpToPs.starts(_rtp(IDR))
+    assert not RtpToPs.starts(IMKH)
+    assert not RtpToPs.starts(_rtp(IDR)[:11])
+
+
+def test_splitter_turns_rtp_into_packs_with_a_stream_map() -> None:
+    descriptor = bytes((0x45, 2, 0x24, 96))
+    splitter = PackSplitter(skip_first_group=False)
+    out = _collect(
+        splitter,
+        _rtp(b"", pt=112, ext=descriptor),
+        _rtp(VPS, seq=2, marker=False),
+        _rtp(IDR, seq=3),
+        _rtp(b"\x00" * 160, pt=8, seq=4),  # audio, dropped
+        _rtp(P_FRAME, seq=5, ts=6000),
+        _rtp(P_FRAME, seq=6, ts=9000),
+    )
+    assert [key for _, key in out] == [True, False]
+    assert splitter.codec == "hevc"
+    assert _rtp_nals(out[0][0]) == [VPS, IDR]
+    assert "RTP payload types {8: 1, 96: 4, 112: 1}, video 96 hevc" in splitter.summary()
+
+
+def test_rtp_pts_follow_the_rtp_clock() -> None:
+    rtp = RtpToPs()
+    first = rtp.feed(_rtp(IDR, ts=0xFFFFF000))
+    second = rtp.feed(_rtp(P_FRAME, seq=2, ts=0x00000FA0))  # the clock wrapped
+    assert _pts(first) == 90_000
+    assert _pts(second) == 90_000 + 0x1FA0
+
+
+def _pts(ps: bytes) -> int:
+    i = ps.index(b"\x00\x00\x01\xe0") + 9
+    b = ps[i : i + 5]
+    return ((b[0] >> 1) & 7) << 30 | b[1] << 22 | (b[2] >> 1) << 15 | b[3] << 7 | b[4] >> 1
+
+
+def test_rtp_reassembles_fragments_and_aggregates() -> None:
+    rtp = RtpToPs()
+    big = b"\x26\x01" + bytes(range(256)) * 300  # an IDR larger than one PES packet
+    body = big[2:]
+    fu_start = b"\x62\x01\x93" + body[:40000]
+    fu_end = b"\x62\x01\x53" + body[40000:]
+    ap = b"\x60\x01" + len(VPS).to_bytes(2, "big") + VPS + b"\x00\x03" + b"\x42\x01\x01"
+    out = rtp.feed(_rtp(ap, marker=False))
+    out += rtp.feed(_rtp(fu_start, seq=2, marker=False))
+    out += rtp.feed(_rtp(b"\x62\x01\x13" + b"", seq=3, marker=False, pad=2))
+    out += rtp.feed(_rtp(fu_end, seq=4))
+    assert out.count(b"\x00\x00\x01\xe0") == 2  # cut into two PES packets
+    assert _rtp_nals(out) == [VPS, b"\x42\x01\x01", big]
+
+
+def test_rtp_drops_a_fragment_with_a_gap_before_it() -> None:
+    rtp = RtpToPs()
+    assert rtp.feed(_rtp(b"\x62\x01\x93abc", marker=False)) == b""
+    assert rtp.feed(_rtp(b"\x62\x01\x53def", seq=3)) == b""  # seq 2 lost
+    assert rtp.dropped == 2  # the open fragment, then the orphan end
+
+
+def test_rtp_reads_h264_without_a_descriptor() -> None:
+    rtp = RtpToPs()
+    sps, idr = b"\x67\x4d\x00\x1f", b"\x65\x88\x84"
+    stap = b"\x18" + len(sps).to_bytes(2, "big") + sps
+    out = rtp.feed(_rtp(stap, marker=False))
+    out += rtp.feed(_rtp(b"\x7c\x85" + idr[1:2], seq=2, marker=False))
+    out += rtp.feed(_rtp(b"\x7c\x45" + idr[2:], seq=3))
+    assert rtp.codec == "h264"
+    assert b"\x00\x00\x01\xbc" in out
+    assert b"\x1b\xe0" in out  # stream map says H.264
+    assert _rtp_nals(out) == [sps, idr]
+
+
+def test_rtp_ignores_what_it_cannot_read() -> None:
+    rtp = RtpToPs()
+    assert rtp.feed(b"\x00" * 20) == b""  # not RTP v2
+    assert rtp.feed(_rtp(b"", pt=96)) == b""  # empty payload
+    assert rtp.feed(_rtp(b"", ext=bytes((0x45, 2, 0x99, 97)))) == b""  # unknown codec
+    assert rtp.video_pt is None
+    assert rtp.feed(_rtp(b"\x62\x01")) == b""  # fragment too short to have a header
+    assert rtp.feed(_rtp(b"\x62\x01\x13x", seq=2)) == b""  # continuation without a start
+
+
+def test_rtp_closes_a_picture_when_the_timestamp_moves_on() -> None:
+    rtp = RtpToPs()
+    assert rtp.feed(_rtp(IDR, marker=False)) == b""
+    out = rtp.feed(_rtp(P_FRAME, seq=2, ts=6000, marker=False))
+    assert _rtp_nals(out) == [IDR]

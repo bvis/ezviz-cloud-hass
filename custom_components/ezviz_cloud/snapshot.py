@@ -106,6 +106,7 @@ class PackSplitter:
     def __init__(self, *, skip_first_group: bool) -> None:
         self._buf = bytearray()
         self._header = True
+        self._rtp: RtpToPs | None = None
         self._groups = 0
         self._skip = skip_first_group
         self._keyframe = False
@@ -119,7 +120,16 @@ class PackSplitter:
         self.nals: dict[int, set[int]] = {}
 
     def feed(self, data: bytes) -> list[tuple[bytes, bool]]:
-        """Add ``data``; return the packs it completed, each with whether it is a keyframe."""
+        """Add ``data``; return the packs it completed, each with whether it is a keyframe.
+
+        Some cameras (the EP4) send RTP instead of MPEG-PS, one packet per call;
+        that is turned into MPEG-PS first, so everything after reads it the same.
+        """
+        if self._header and self._rtp is None and RtpToPs.starts(data):
+            self._rtp = RtpToPs()
+            self._header = False
+        if self._rtp is not None:
+            data = self._rtp.feed(data)
         self._buf += data
         if self._header:
             if len(self._buf) < 4:
@@ -164,11 +174,12 @@ class PackSplitter:
 
     def summary(self) -> str:
         """What each stream id carried so far, for the debug log."""
-        return "; ".join(
+        text = "; ".join(
             f"{sid:02x}: {packets} packets, {size} bytes"
             + (f", NAL types {sorted(self.nals[sid])}" if sid in self.nals else "")
             for sid, (packets, size) in sorted(self.stats.items())
         )
+        return f"{self._rtp.summary()}; {text}" if self._rtp is not None else text
 
     def _count(self, pack: bytes) -> None:
         for sid, start, end in _packets(pack):
@@ -192,6 +203,175 @@ class PackSplitter:
         if self._skip and self._groups < 2:
             return
         done.append((pack, self._keyframe))
+
+
+_RTP_SOURCE = b"\x55\x66\x77\x88"  # the fixed RTP source id these cameras send
+_RTP_VIDEO_PT = 96  # used when the stream doesn't say which payload type is video
+_PES_CHUNK = 60_000
+_PTS_START = 90_000  # one second in, so the first picture never sits at zero
+
+
+class RtpToPs:
+    """Turns RTP video (H.265 or H.264, RFC 7798 / 6184) into MPEG-PS, one pack per picture.
+
+    The first packet's header extension can carry a stream descriptor (0x45:
+    stream type, payload type), which says which payload type is the video and
+    its codec. Audio and the other payload types are dropped.
+    """
+
+    def __init__(self) -> None:
+        self.video_pt: int | None = None
+        self.codec: str | None = None
+        self.payload_types: dict[int, int] = {}
+        self.dropped = 0
+        self._nals: list[bytes] = []
+        self._ts: int | None = None
+        self._t0: int | None = None
+        self._fu: bytearray | None = None
+        self._seq: int | None = None
+
+    @staticmethod
+    def starts(data: bytes) -> bool:
+        """Whether ``data`` is the first packet of such a stream."""
+        return len(data) >= 12 and data[0] >> 6 == 2 and data[8:12] == _RTP_SOURCE
+
+    def summary(self) -> str:
+        """What the RTP carried, for the debug log."""
+        types = ", ".join(f"{pt}: {n}" for pt, n in sorted(self.payload_types.items()))
+        return (
+            f"RTP payload types {{{types}}}, video {self.video_pt} {self.codec}, "
+            f"{self.dropped} fragments dropped"
+        )
+
+    def feed(self, data: bytes) -> bytes:
+        """Take one RTP packet; return the MPEG-PS of any picture it completed."""
+        if len(data) < 12 or data[0] >> 6 != 2:
+            return b""
+        pt, marker = data[1] & 0x7F, bool(data[1] & 0x80)
+        seq = int.from_bytes(data[2:4], "big")
+        ts = int.from_bytes(data[4:8], "big")
+        offset = 12 + (data[0] & 0x0F) * 4
+        if data[0] & 0x10 and len(data) >= offset + 4:
+            ext_end = offset + 4 + int.from_bytes(data[offset + 2 : offset + 4], "big") * 4
+            self._descriptors(data[offset + 4 : ext_end])
+            offset = ext_end
+        end = len(data) - (data[-1] if data[0] & 0x20 else 0)
+        payload = data[offset:end]
+        self.payload_types[pt] = self.payload_types.get(pt, 0) + 1
+        if pt != (self.video_pt if self.video_pt is not None else _RTP_VIDEO_PT) or not payload:
+            return b""
+        if self.codec is None:
+            # H.265 NAL headers end in 0x01 (layer 0, temporal id 1); H.264 ones don't.
+            self.codec = "hevc" if len(payload) > 1 and payload[1] == 0x01 else "h264"
+        if self._seq is not None and seq != (self._seq + 1) & 0xFFFF and self._fu is not None:
+            self._fu = None
+            self.dropped += 1
+        self._seq = seq
+        out = b""
+        if self._ts is not None and ts != self._ts and self._nals:
+            out = self._flush()
+        self._ts = ts
+        self._nals += self._depacketize(payload)
+        if marker and self._nals:
+            out += self._flush()
+        return out
+
+    def _descriptors(self, ext: bytes) -> None:
+        i = 0
+        while i + 4 <= len(ext):
+            tag, length = ext[i], ext[i + 1]
+            if tag == 0x45 and length >= 2 and ext[i + 2] in _CODECS:
+                self.codec = _CODECS[ext[i + 2]]
+                self.video_pt = ext[i + 3] & 0x7F
+            i += 2 + length
+
+    def _depacketize(self, p: bytes) -> list[bytes]:
+        hevc = self.codec == "hevc"
+        head = 2 if hevc else 1
+        kind = (p[0] >> 1) & 0x3F if hevc else p[0] & 0x1F
+        if kind == (48 if hevc else 24):  # aggregation: several NAL units, each sized
+            units, i = [], head
+            while i + 2 <= len(p):
+                size = int.from_bytes(p[i : i + 2], "big")
+                units.append(p[i + 2 : i + 2 + size])
+                i += 2 + size
+            return [u for u in units if u]
+        if kind != (49 if hevc else 28):  # a whole NAL unit
+            return [p]
+        if len(p) <= head:  # a fragment too short to carry its header
+            self.dropped += 1
+            return []
+        fu = p[head]
+        if fu & 0x80:  # first fragment: rebuild the NAL header it replaced
+            nal_type = fu & 0x3F if hevc else fu & 0x1F
+            first = (
+                bytes(((p[0] & 0x81) | (nal_type << 1), p[1]))
+                if hevc
+                else bytes(((p[0] & 0xE0) | nal_type,))
+            )
+            self._fu = bytearray(first)
+        elif self._fu is None:
+            self.dropped += 1
+            return []
+        self._fu += p[head + 1 :]
+        if not fu & 0x40:
+            return []
+        nal, self._fu = bytes(self._fu), None
+        return [nal]
+
+    def _flush(self) -> bytes:
+        nals, self._nals = self._nals, []
+        assert self._ts is not None
+        if self._t0 is None:
+            self._t0 = self._ts
+        # ponytail: 32-bit RTP clock wraps after ~13 h at 90 kHz; live streams are minutes.
+        pts = _PTS_START + ((self._ts - self._t0) & 0xFFFFFFFF)
+        es = b"".join(b"\x00\x00\x00\x01" + n for n in nals)
+        types = {(n[0] >> 1) & 0x3F if self.codec == "hevc" else n[0] & 0x1F for n in nals}
+        key = bool(types & ({16, 17, 18, 19, 20, 21, 32} if self.codec == "hevc" else {5, 7}))
+        out = bytearray(_pack_header(pts))
+        if key:
+            stream_type = 0x24 if self.codec == "hevc" else 0x1B
+            body = b"\xe0\xff\x00\x00\x00\x04" + bytes((stream_type, 0xE0, 0, 0))
+            out += b"\x00\x00\x01\xbc" + (len(body) + 4).to_bytes(2, "big") + body + bytes(4)
+        for i in range(0, len(es), _PES_CHUNK):
+            out += _pes_packet(es[i : i + _PES_CHUNK], pts if i == 0 else None)
+        return bytes(out)
+
+
+def _pack_header(scr: int) -> bytes:
+    """MPEG-2 pack header with ``scr`` (90 kHz), the highest mux rate and no stuffing."""
+    return b"\x00\x00\x01\xba" + bytes(
+        (
+            0x44 | ((scr >> 27) & 0x38) | ((scr >> 28) & 0x03),
+            (scr >> 20) & 0xFF,
+            ((scr >> 12) & 0xF8) | 0x04 | ((scr >> 13) & 0x03),
+            (scr >> 5) & 0xFF,
+            ((scr << 3) & 0xF8) | 0x04,
+            0x01,
+            0xFF,
+            0xFF,
+            0xFF,
+            0xF8,
+        )
+    )
+
+
+def _pes_packet(payload: bytes, pts: int | None) -> bytes:
+    """Video PES packet (0xE0), with a PTS when given."""
+    if pts is None:
+        header = b"\x80\x00\x00"
+    else:
+        header = b"\x80\x80\x05" + bytes(
+            (
+                0x21 | ((pts >> 29) & 0x0E),
+                (pts >> 22) & 0xFF,
+                ((pts >> 14) & 0xFE) | 1,
+                (pts >> 7) & 0xFF,
+                ((pts << 1) & 0xFE) | 1,
+            )
+        )
+    return b"\x00\x00\x01\xe0" + (len(header) + len(payload)).to_bytes(2, "big") + header + payload
 
 
 def _is_video(stream_id: int) -> bool:
