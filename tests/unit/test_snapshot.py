@@ -517,10 +517,17 @@ def test_rtp_waits_for_a_packet_that_names_the_codec() -> None:
     assert rtp.feed(_rtp(b"\x7c\x01abc")) == b""  # a middle fragment, either codec
     assert rtp.feed(_rtp(b"\x61\x01")) == b""  # an H.264 slice with an H.265-like header
     assert rtp.feed(_rtp(b"\x80\x01\x00")) == b""  # forbidden bit set
+    assert rtp.feed(_rtp(b"\x41\x01\x9a")) == b""  # H.264 slice; as H.265 its layer isn't 0
     assert rtp.codec is None
     out = rtp.feed(_rtp(b"\x18" + len(sps).to_bytes(2, "big") + sps, seq=3))
     assert rtp.codec == "h264"
     assert _rtp_nals(out) == [sps]
+    aud_first = RtpToPs()  # an access unit delimiter ahead of the parameter set
+    aud_first.feed(_rtp(b"\x18\x00\x02\x09\xf0" + len(sps).to_bytes(2, "big") + sps))
+    assert aud_first.codec == "h264"
+    aud_first = RtpToPs()
+    aud_first.feed(_rtp(b"\x60\x01\x00\x03\x46\x01\x50\x00\x03" + VPS))
+    assert aud_first.codec == "hevc"
     fu_a = RtpToPs()
     fu_a.feed(_rtp(b"\x7c\x85\x88"))  # first fragment of an IDR
     assert fu_a.codec == "h264"

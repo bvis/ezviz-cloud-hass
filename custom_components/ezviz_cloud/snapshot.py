@@ -351,22 +351,33 @@ def _guess_codec(p: bytes) -> str | None:
     It looks inside aggregation packets and first fragments too. Other payloads
     can read as either codec, so they give no answer.
     """
-    if len(p) > 2 and p[1] == 0x01:  # H.265: layer 0, temporal id 1
+    if len(p) > 2 and not p[0] & 0x81 and p[1] == 0x01:  # H.265: layer 0, temporal id 1
         t = (p[0] >> 1) & 0x3F
-        if t == 48 and len(p) > 4:
-            t = (p[4] >> 1) & 0x3F
-        elif t == 49 and p[2] & 0x80:
-            t = p[2] & 0x3F
-        if 16 <= t <= 21 or 32 <= t <= 34:
+        if t == 48:
+            types = [(p[i] >> 1) & 0x3F for i in _aggregated(p, 2)]
+        elif t == 49:
+            types = [p[2] & 0x3F] if p[2] & 0x80 else []
+        else:
+            types = [t]
+        if any(16 <= x <= 21 or 32 <= x <= 34 for x in types):
             return "hevc"
     if p[0] & 0x80:  # forbidden bit
         return None
     t = p[0] & 0x1F
-    if t == 24 and len(p) > 3:
-        t = p[3] & 0x1F
-    elif t == 28 and len(p) > 1 and p[1] & 0x80:
-        t = p[1] & 0x1F
-    return "h264" if t in (5, 7) else None
+    if t == 24:
+        types = [p[i] & 0x1F for i in _aggregated(p, 1)]
+    elif t == 28:
+        types = [p[1] & 0x1F] if len(p) > 1 and p[1] & 0x80 else []
+    else:
+        types = [t]
+    return "h264" if {5, 7} & set(types) else None
+
+
+def _aggregated(p: bytes, i: int) -> Iterator[int]:
+    """Where each NAL unit of an aggregation packet starts, its sizes from offset ``i``."""
+    while i + 2 < len(p):
+        yield i + 2
+        i += 2 + int.from_bytes(p[i : i + 2], "big")
 
 
 def _pack_header(scr: int) -> bytes:
