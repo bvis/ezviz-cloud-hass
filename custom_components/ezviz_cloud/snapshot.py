@@ -207,6 +207,7 @@ class PackSplitter:
 
 _RTP_SOURCE = b"\x55\x66\x77\x88"  # the fixed RTP source id these cameras send
 _RTP_VIDEO_PT = 96  # used when the stream doesn't say which payload type is video
+_RTP_DESCRIPTOR_PROFILE = 0x0001  # audio packets carry other extensions (0x4000), not descriptors
 _PES_CHUNK = 60_000
 _PTS_START = 90_000  # one second in, so the first picture never sits at zero
 
@@ -216,7 +217,9 @@ class RtpToPs:
 
     The first packet's header extension can carry a stream descriptor (0x45:
     stream type, payload type), which says which payload type is the video and
-    its codec. Audio and the other payload types are dropped.
+    its codec. Only extensions of profile 0x0001 hold descriptors, and H.264 and
+    H.265 always use a dynamic payload type (96-127); anything else is ignored.
+    Audio and the other payload types are dropped.
     """
 
     def __init__(self) -> None:
@@ -224,6 +227,7 @@ class RtpToPs:
         self.codec: str | None = None
         self.payload_types: dict[int, int] = {}
         self.dropped = 0
+        self.descriptor = b""  # the first descriptor extension, for the debug log
         self._nals: list[bytes] = []
         self._ts: int | None = None
         self._t0: int | None = None
@@ -240,7 +244,7 @@ class RtpToPs:
         types = ", ".join(f"{pt}: {n}" for pt, n in sorted(self.payload_types.items()))
         return (
             f"RTP payload types {{{types}}}, video {self.video_pt} {self.codec}, "
-            f"{self.dropped} fragments dropped"
+            f"{self.dropped} fragments dropped, descriptor {self.descriptor.hex() or 'none'}"
         )
 
     def feed(self, data: bytes) -> bytes:
@@ -253,7 +257,9 @@ class RtpToPs:
         offset = 12 + (data[0] & 0x0F) * 4
         if data[0] & 0x10 and len(data) >= offset + 4:
             ext_end = offset + 4 + int.from_bytes(data[offset + 2 : offset + 4], "big") * 4
-            self._descriptors(data[offset + 4 : ext_end])
+            if int.from_bytes(data[offset : offset + 2], "big") == _RTP_DESCRIPTOR_PROFILE:
+                self.descriptor = self.descriptor or data[offset + 4 : ext_end]
+                self._descriptors(data[offset + 4 : ext_end])
             offset = ext_end
         end = len(data) - (data[-1] if data[0] & 0x20 else 0)
         payload = data[offset:end]
@@ -281,7 +287,7 @@ class RtpToPs:
         i = 0
         while i + 4 <= len(ext):
             tag, length = ext[i], ext[i + 1]
-            if tag == 0x45 and length >= 2 and ext[i + 2] in _CODECS:
+            if tag == 0x45 and length >= 2 and ext[i + 2] in _CODECS and ext[i + 3] & 0x7F >= 96:
                 self.codec = _CODECS[ext[i + 2]]
                 self.video_pt = ext[i + 3] & 0x7F
             i += 2 + length

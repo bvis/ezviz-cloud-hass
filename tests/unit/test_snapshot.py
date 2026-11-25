@@ -417,13 +417,14 @@ def _rtp(
     ts: int = 3000,
     marker: bool = True,
     ext: bytes | None = None,
+    profile: int = 1,
     pad: int = 0,
 ) -> bytes:
     b0 = 0x80 | (0x10 if ext is not None else 0) | (0x20 if pad else 0)
     head = bytes((b0, (0x80 if marker else 0) | pt)) + seq.to_bytes(2, "big")
     head += ts.to_bytes(4, "big") + b"\x55\x66\x77\x88"
     if ext is not None:
-        head += b"\x00\x01" + (len(ext) // 4).to_bytes(2, "big") + ext
+        head += profile.to_bytes(2, "big") + (len(ext) // 4).to_bytes(2, "big") + ext
     return head + payload + (bytes(pad - 1) + bytes((pad,)) if pad else b"")
 
 
@@ -542,6 +543,17 @@ def test_rtp_starts_every_nal_unit_in_its_own_pes_packet() -> None:
     payloads = [p[5 + p[4] :] for p in out.split(b"\x00\x00\x01\xe0")[1:]]
     assert [p[:4] for p in payloads] == [b"\x00\x00\x00\x01"] * 2
     assert _rtp_nals(out) == nals
+
+
+def test_rtp_takes_the_video_route_only_from_a_real_descriptor() -> None:
+    # Audio extensions (profile 0x4000) aren't descriptors, even when their bytes
+    # read like one; H.264 never sits on a static payload type like 15.
+    rtp = RtpToPs()
+    rtp.feed(_rtp(b"", pt=104, ext=bytes((0x45, 2, 0x1B, 15)), profile=0x4000))
+    rtp.feed(_rtp(b"", pt=112, ext=bytes((0x45, 2, 0x1B, 15))))
+    assert rtp.video_pt is None
+    assert rtp.feed(_rtp(IDR)) != b""  # PT 96 still read as video
+    assert "descriptor 45021b0f" in rtp.summary()
 
 
 def test_rtp_ignores_what_it_cannot_read() -> None:
