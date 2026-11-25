@@ -549,7 +549,7 @@ def test_rtp_takes_the_video_route_only_from_a_real_descriptor() -> None:
     # Audio extensions (profile 0x4000) aren't descriptors, even when their bytes
     # read like one; H.264 never sits on a static payload type like 15.
     rtp = RtpToPs()
-    rtp.feed(_rtp(b"", pt=104, ext=bytes((0x45, 2, 0x1B, 15)), profile=0x4000))
+    rtp.feed(_rtp(b"", pt=104, ext=bytes((0x45, 2, 0x1B, 97)), profile=0x4000))
     rtp.feed(_rtp(b"", pt=112, ext=bytes((0x45, 2, 0x1B, 15))))
     assert rtp.video_pt is None
     assert rtp.feed(_rtp(IDR)) != b""  # PT 96 still read as video
