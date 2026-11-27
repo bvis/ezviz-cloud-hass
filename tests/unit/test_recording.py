@@ -50,7 +50,13 @@ def test_paths_and_names(tmp_path: Path) -> None:
     assert not (tmp_path / "ezviz_cloud").exists()
 
 
-@pytest.mark.parametrize("serial", ["../etc", "BK1/..", "", "a b"])
+def test_accepts_serial_with_hyphen(tmp_path: Path) -> None:
+    """Some doorbells report two ids joined by a hyphen (#50)."""
+    path = RecordingStore(tmp_path).photo_path("AB1234567-AB7654321", "2026-10-04_22-00-00")
+    assert path.parent == tmp_path / "ezviz_cloud/AB1234567-AB7654321"
+
+
+@pytest.mark.parametrize("serial", ["../etc", "BK1/..", "", "a b", "..", "a.b"])
 def test_rejects_unsafe_serial(tmp_path: Path, serial: str) -> None:
     with pytest.raises(ValueError, match="Unsafe serial"):
         RecordingStore(tmp_path).photo_path(serial, "2026-10-04_22-00-00")

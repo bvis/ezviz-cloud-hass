@@ -31,7 +31,10 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 _STEM_FORMAT = "%Y-%m-%d_%H-%M-%S"
-_SERIAL = re.compile(r"[A-Za-z0-9]+")
+# A folder name: letters, digits, "-" and "_". Some doorbells have a serial of
+# two ids joined by a hyphen (#50). No dot and no slash, so it cannot leave the
+# recordings folder.
+_SERIAL = re.compile(r"[A-Za-z0-9_-]+")
 _VIDEO_SUFFIXES = (".mp4", ".webm")
 
 
