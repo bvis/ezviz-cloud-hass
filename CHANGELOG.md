@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Both lenses at once.** Cameras that send two lenses in one stream, such as the HB90, get a second live camera, *Live, other lens*, disabled by default. With *Video track* set to 1, the *Live* camera shows the first lens and the new one the second, so both fit on a dashboard together. They share the camera's single stream: watching both wakes the camera once. Requested by @StefanBiacsics (#37). **Requests to EZVIZ:** none extra.
 
 ### Fixed
+- **Doorbells whose serial has a hyphen, such as the CPD5 (#50).** The integration failed to load with "Unsafe serial" as soon as the account had one of these, so no camera worked. Found and fixed by @ngiraldes.
 - **Live video on cameras that send their stream as RTP, such as the EP4.** The *Live* camera got the video but showed nothing and kept dropping to unavailable, and photo and clip buttons failed the same way. The integration now reads that stream too, in H.265 or H.264, with or without a verification code. Not yet confirmed on an EP4 (#46). **Requests to EZVIZ:** none changed.
 
 ## [0.14.0] - 2026-11-23
